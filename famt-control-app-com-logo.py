@@ -1,3 +1,4 @@
+
 import streamlit as st
 import mysql.connector
 from mysql.connector import Error, IntegrityError
@@ -7,7 +8,7 @@ import hashlib
 import re
 import random
 import string
-from datetime import datetime
+from datetime import datetime, date, time
 import calendar
 import base64
 import smtplib
@@ -17,7 +18,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import os
 import html
-from datetime import date, time
+
+
+# =============================================================================
+# CONFIGURAÇÃO DA PÁGINA STREAMLIT
+# =============================================================================
 
 st.set_page_config(
     page_title="FAMT CONTROL - Dashboard",
@@ -31,25 +36,36 @@ st.set_page_config(
 # LOGO E CONFIGURAÇÃO DO BANCO DE DADOS MYSQL
 # =============================================================================
 
-LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
+LOGO_PATH = (
+    Path(__file__).resolve().parent
+    / "Logo Fintech FAMT Control.png"
+)
 
 
 def logo_html(css_class="system-logo"):
-    """Retorna a logo em base64 para funcionar dentro do HTML do Streamlit."""
+    """Retorna a logo em base64 para renderização HTML."""
+
     if not LOGO_PATH.exists():
         return ""
 
-    data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
+    data = base64.b64encode(
+        LOGO_PATH.read_bytes()
+    ).decode("utf-8")
+
     classe = html.escape(css_class, quote=True)
 
-    return (
-        f'<img src="data:image/png;base64,{data}" '
-        f'class="{classe}" alt="FAMT Control" />'
-    )
+    return f'''
+        <img
+            src="data:image/png;base64,{data}"
+            class="{classe}"
+            alt="Logo FAMT Control"
+        >
+    '''
 
 
 def obter_conexao():
-    """Abre conexão MySQL usando secrets.toml ou variáveis de ambiente."""
+    """Abre conexão MySQL via st.secrets ou variáveis de ambiente local."""
+
     try:
         cfg = {}
 
@@ -57,60 +73,79 @@ def obter_conexao():
             cfg = dict(st.secrets["mysql"])
 
         return mysql.connector.connect(
-            host=cfg.get("host", os.getenv("MYSQL_HOST", "localhost")),
-            user=cfg.get("user", os.getenv("MYSQL_USER", "root")),
-            password=cfg.get("password", os.getenv("MYSQL_PASSWORD", "root")),
+            host=cfg.get(
+                "host",
+                os.getenv("MYSQL_HOST", "localhost")
+            ),
+            user=cfg.get(
+                "user",
+                os.getenv("MYSQL_USER", "root")
+            ),
+            password=cfg.get(
+                "password",
+                os.getenv("MYSQL_PASSWORD", "root")
+            ),
             database=cfg.get(
                 "database",
                 os.getenv("MYSQL_DATABASE", "famt_control")
             ),
-            port=int(cfg.get("port", os.getenv("MYSQL_PORT", "3306"))),
+            port=int(
+                cfg.get(
+                    "port",
+                    os.getenv("MYSQL_PORT", "3306")
+                )
+            ),
             connection_timeout=8
         )
 
     except Exception as e:
         st.error(f"Não foi possível conectar ao MySQL: {e}")
+
         st.info(
-            "Confira se o MySQL está iniciado, se o banco 'famt_control' "
-            "existe e se usuário/senha estão corretos."
+            "Confira se o serviço do MySQL está ativo e se o banco "
+            "'famt_control' ou 'defaultdb' existe."
         )
+
         st.stop()
 
 
 # =============================================================================
-# MÓDULO DE SEGURANÇA, CRIPTOGRAFIA E VALIDAÇÕES (LGPD)
+# MÓDULO DE SEGURANÇA, CRIPTOGRAFIA E VALIDAÇÕES (LGPD / REQ-EXT-01)
 # =============================================================================
 
 def _hash_senha(senha: str) -> str:
-    """Gera hash SHA-256 para a senha."""
-    return hashlib.sha256(senha.encode("utf-8")).hexdigest()
+    """Gera hash SHA-256 para a senha do usuário."""
+
+    return hashlib.sha256(
+        senha.encode("utf-8")
+    ).hexdigest()
 
 
 def validar_complexidade_senha(senha: str) -> tuple[bool, str]:
-    """
-    Valida os requisitos mínimos de segurança de senha:
-
-    - Mínimo de 6 caracteres
-    - Pelo menos 1 letra maiúscula
-    - Pelo menos 1 letra minúscula
-    - Pelo menos 1 número
-    - Pelo menos 1 caractere especial
-    """
+    """Valida os requisitos mínimos de segurança de senha (LGPD)."""
 
     if len(senha) < 6:
         return False, "A senha deve conter no mínimo 6 caracteres."
 
     if not re.search(r"[A-Z]", senha):
-        return False, "A senha deve conter pelo menos uma letra maiúscula (A-Z)."
+        return False, (
+            "A senha deve conter pelo menos uma letra maiúscula (A-Z)."
+        )
 
     if not re.search(r"[a-z]", senha):
-        return False, "A senha deve conter pelo menos uma letra minúscula (a-z)."
+        return False, (
+            "A senha deve conter pelo menos uma letra minúscula (a-z)."
+        )
 
     if not re.search(r"\d", senha):
-        return False, "A senha deve conter pelo menos um número (0-9)."
+        return False, (
+            "A senha deve conter pelo menos um número (0-9)."
+        )
 
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', senha):
-        return False, "A senha deve conter pelo menos um caractere especial."
+        return False, (
+            "A senha deve conter pelo menos um caractere especial."
+        )
 
     return True, "Senha válida."
 
@@ -142,39 +177,63 @@ def gerar_senha_provisoria(tamanho: int = 8) -> str:
     return "".join(senha)
 
 
-
 def enviar_senha_provisoria_email(
     email_destino: str,
     senha_provisoria: str
 ) -> bool:
+    """Envia a senha provisória via SMTP quando configurado."""
+
     try:
         if not hasattr(st, "secrets") or "email" not in st.secrets:
             return False
 
         cfg = st.secrets["email"]
 
-        # Suporta tanto chaves em português quanto em inglês
-        servidor = cfg.get("servidor", cfg.get("smtp_server"))
-        porta = int(cfg.get("porta", cfg.get("smtp_port", 587)))
-        usuario = cfg.get("usuario", cfg.get("sender_email"))
-        senha = cfg.get("senha", cfg.get("sender_password"))
+        servidor = cfg.get(
+            "servidor",
+            cfg.get("smtp_server")
+        )
+
+        porta = int(
+            cfg.get("porta", cfg.get("smtp_port", 587))
+        )
+
+        usuario = cfg.get(
+            "usuario",
+            cfg.get("sender_email")
+        )
+
+        senha = cfg.get(
+            "senha",
+            cfg.get("sender_password")
+        )
 
         mensagem = MIMEMultipart()
+
         mensagem["From"] = usuario
         mensagem["To"] = email_destino
-        mensagem["Subject"] = "Sua senha provisória - FAMT Control"
+        mensagem["Subject"] = (
+            "🔐 Sua Senha Provisória - FAMT Control"
+        )
 
-        corpo_email = (
-            f"Olá!\n\n"
-            f"Sua senha provisória do FAMT Control é: {senha_provisoria}\n\n"
-            f"Ao entrar, você deverá criar uma nova senha."
+        corpo = (
+            "Olá!\n\n"
+            f"Sua senha provisória do FAMT Control é: "
+            f"{senha_provisoria}\n\n"
+            "Ao acessar o sistema, você deverá cadastrar "
+            "sua nova senha definitiva."
         )
 
         mensagem.attach(
-            MIMEText(corpo_email, "plain", "utf-8")
+            MIMEText(corpo, "plain", "utf-8")
         )
 
-        with smtplib.SMTP(servidor, porta, timeout=15) as smtp:
+        with smtplib.SMTP(
+            servidor,
+            porta,
+            timeout=15
+        ) as smtp:
+
             smtp.starttls()
             smtp.login(usuario, senha)
             smtp.send_message(mensagem)
@@ -182,17 +241,16 @@ def enviar_senha_provisoria_email(
         return True
 
     except Exception as e:
-        st.warning(f"Não foi possível enviar o e-mail: {e}")
+        st.warning(f"Aviso SMTP: {e}")
         return False
 
 
-
 # =============================================================================
-# INICIALIZAÇÃO DO BANCO DE DADOS
+# INICIALIZAÇÃO DO BANCO DE DADOS E SCHEMAS (3FN)
 # =============================================================================
 
 def inicializar_banco():
-    """Cria as tabelas do sistema caso ainda não existam."""
+    """Cria as tabelas do sistema caso não existam no MySQL."""
 
     try:
         conexao = obter_conexao()
@@ -212,26 +270,37 @@ def inicializar_banco():
             CREATE TABLE IF NOT EXISTS Transacoes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 usuario_id INT NOT NULL,
-                valor DECIMAL(10,2) NOT NULL CHECK (valor > 0),
+                valor DECIMAL(10,2) NOT NULL
+                    CHECK (valor > 0),
                 tipo VARCHAR(20) NOT NULL
-                    CHECK (tipo IN ('Receita', 'Despesa')),
+                    CHECK (
+                        tipo IN (
+                            'RECEITA',
+                            'DESPESA',
+                            'Receita',
+                            'Despesa'
+                        )
+                    ),
                 data DATETIME NOT NULL,
                 descricao VARCHAR(255) NOT NULL,
                 categoria VARCHAR(100) NOT NULL,
+
                 FOREIGN KEY (usuario_id)
                     REFERENCES Usuarios(id)
                     ON DELETE CASCADE
+
             ) ENGINE=InnoDB;
         """)
 
-        # Não cria usuários nem movimentações fictícias automaticamente.
-
         conexao.commit()
+
         cursor.close()
         conexao.close()
 
     except Exception as e:
-        st.error(f"Erro ao inicializar o banco de dados: {e}")
+        st.error(
+            f"Erro ao inicializar o banco de dados: {e}"
+        )
 
 
 inicializar_banco()
@@ -242,190 +311,29 @@ inicializar_banco()
 # =============================================================================
 
 CUSTOM_CSS = """
-<style>
-    /* FUNDO PRINCIPAL */
-    .stApp {
-        background: linear-gradient(135deg, #0B1020 0%, #15152B 55%, #10182A 100%);
-        color: #F8FAFC;
-    }
-
-    /* BARRA LATERAL */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #15162D, #101322);
-        border-right: 1px solid rgba(139, 92, 246, 0.20);
-    }
-
-    [data-testid="stSidebar"] * {
-        color: #E2E8F0;
-    }
-
-    /* CONTEÚDO */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 3rem;
-        max-width: 1500px;
-    }
-
-    /* TÍTULOS */
-    h1, h2, h3 {
-        color: #FFFFFF !important;
-        font-weight: 750 !important;
-        letter-spacing: -0.5px;
-    }
-
-    h1 {
-        font-size: 2.2rem !important;
-    }
-
-    h2 {
-        font-size: 1.6rem !important;
-    }
-
-    /* TEXTOS */
-    p, label, .stCaption {
-        color: #B8C1D9;
-    }
-
-    /* CARDS FINANCEIROS */
-    [data-testid="stMetric"] {
-        background: linear-gradient(145deg, #202744, #171D35);
-        border: 1px solid #343E60;
-        border-radius: 18px;
-        padding: 22px 20px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.20);
-        transition: all 0.25s ease;
-    }
-
-    [data-testid="stMetric"]:hover {
-        border-color: #8B5CF6;
-        transform: translateY(-3px);
-        box-shadow: 0 12px 30px rgba(139, 92, 246, 0.13);
-    }
-
-    [data-testid="stMetricLabel"] {
-        color: #AAB5D1 !important;
-        font-size: 0.95rem;
-        font-weight: 600;
-    }
-
-    [data-testid="stMetricValue"] {
-        color: #FFFFFF !important;
-        font-size: 1.8rem;
-        font-weight: 750;
-    }
-
-    /* BOTÕES */
-    div.stButton > button,
-    div.stFormSubmitButton > button {
-        background: linear-gradient(135deg, #7C3AED, #5B4BDB);
-        color: white;
-        border: 1px solid rgba(167, 139, 250, 0.35);
-        border-radius: 12px;
-        min-height: 44px;
-        font-weight: 650;
-        transition: all 0.2s ease;
-    }
-
-    div.stButton > button:hover,
-    div.stFormSubmitButton > button:hover {
-        background: linear-gradient(135deg, #8B5CF6, #6D5CE7);
-        border-color: #A78BFA;
-        color: white;
-        transform: translateY(-2px);
-    }
-
-    /* CAMPOS DE ENTRADA */
-    .stTextInput input,
-    .stNumberInput input,
-    .stDateInput input,
-    .stSelectbox div[data-baseweb="select"] {
-        background-color: #1C2440;
-        color: white;
-        border-radius: 10px;
-        border-color: #394563;
-    }
-
-    /* FORMULÁRIOS */
-    div[data-testid="stForm"] {
-        background: #171E35;
-        border: 1px solid #303B5C;
-        border-radius: 18px;
-        padding: 22px;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-    }
-
-    /* TABELAS */
-    [data-testid="stDataFrame"] {
-        border: 1px solid #343E60;
-        border-radius: 14px;
-        overflow: hidden;
-    }
-
-    /* ABAS */
-    button[data-baseweb="tab"] {
-        color: #AAB5D1;
-        font-weight: 600;
-    }
-
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: #A78BFA;
-    }
-
-    /* SEPARADORES */
-    hr {
-        border-color: #303B5C;
-        opacity: 0.7;
-    }
-
-    /* GRÁFICOS E CONTAINERS */
-    [data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: #303B5C;
-        border-radius: 16px;
-    }
-
-    /* POPOVER */
-    [data-testid="stPopover"] button {
-        border-radius: 12px;
-    }
-
-    /* ROLAGEM */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: #101322;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: #51417D;
-        border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: #8B5CF6;
-    }
-
-</style>
 """
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+st.markdown(
+    CUSTOM_CSS,
+    unsafe_allow_html=True
+)
+
 
 # =============================================================================
 # GERENCIAMENTO DE SESSÃO
 # =============================================================================
 
-if 'usuario_id' not in st.session_state:
+if "usuario_id" not in st.session_state:
     st.session_state.usuario_id = None
 
-if 'email_logado' not in st.session_state:
+if "email_logado" not in st.session_state:
     st.session_state.email_logado = None
 
-if 'primeiro_acesso' not in st.session_state:
+if "primeiro_acesso" not in st.session_state:
     st.session_state.primeiro_acesso = 0
 
-
 # =============================================================================
-# TELA DE LOGIN / CADASTRO DE CONTA / RECUPERAÇÃO DE SENHA
+# TELA DE LOGIN / NOVO CADASTRO / REDEFINIÇÃO DE SENHA
 # =============================================================================
 
 if st.session_state.usuario_id is None:
@@ -434,360 +342,309 @@ if st.session_state.usuario_id is None:
 
     with col_center:
 
-        st.markdown('<div>', unsafe_allow_html=True)
-
-        if LOGO_PATH.exists():
-
-            logo_data = base64.b64encode(
-                LOGO_PATH.read_bytes()
-            ).decode("utf-8")
-
-            st.markdown(
-                f'<div></div>',
-                unsafe_allow_html=True
-            )
-
-        else:
-
-            st.markdown(
-                '<div>💰</div>',
-                unsafe_allow_html=True
-            )
-
         st.markdown(
-            """
-            <div>
-                FAMT <span>CONTROL</span>
-            </div>
-
-            <div>
-                Seu dinheiro sob controle • Squad FAMT
-            </div>
-            </div>
-            """,
+            "<br />",
             unsafe_allow_html=True
         )
 
-    aba1, aba2, aba3 = st.tabs([
-        "🔑 Entrar",
-        "📝 Nova Conta",
-        "🛡️ Redefinir Senha"
-    ])
-
-    # =========================================================================
-    # ABA 1: LOGIN NO SISTEMA
-    # =========================================================================
-
-    with aba1:
-
-        st.markdown(
-            """
+        st.markdown("""
             <div>
-                <div>🔑 Acesse sua conta</div>
-                <div>
-                    Informe suas credenciais registradas no FAMT Control.
-                </div>
-            """,
-            unsafe_allow_html=True
-        )
+                <h1>FAMT <span>CONTROL</span></h1>
+                <p>Seu dinheiro sob controle • Squad FAMT</p>
+            </div>
+        """, unsafe_allow_html=True)
 
-        with st.form(key="form_login_v24"):
+        aba1, aba2, aba3 = st.tabs([
+            "🔑 Entrar",
+            "📝 Nova Conta",
+            "🛡️ Redefinir Senha"
+        ])
 
-            email = st.text_input(
-                "E-mail cadastrado",
-                key="login_email_v24",
-                placeholder="seu.email@exemplo.com"
-            ).strip().lower()
+        # ---------------------------------------------------------------------
+        # ABA 1 - LOGIN
+        # ---------------------------------------------------------------------
 
-            senha = st.text_input(
-                "Senha de acesso",
-                type="password",
-                key="login_senha_v24",
-                placeholder="••••••••"
-            ).strip()
+        with aba1:
 
-            st.markdown(
-                "<div></div>",
-                unsafe_allow_html=True
-            )
+            with st.form(key="form_login_v33"):
 
-            btn_login = st.form_submit_button(
-                "🚀 Entrar no Sistema",
-                use_container_width=True,
-                type="primary"
-            )
+                st.markdown("### 🔑 Acesse sua conta")
 
-        if btn_login:
+                email = st.text_input(
+                    "E-mail cadastrado",
+                    key="login_email_v33"
+                ).strip().lower()
 
-            if not email or not senha:
+                senha = st.text_input(
+                    "Senha de acesso",
+                    type="password",
+                    key="login_senha_v33"
+                ).strip()
 
-                st.error(
-                    "❌ Por favor, preencha o e-mail e a senha."
+                st.markdown(
+                    "<br />",
+                    unsafe_allow_html=True
                 )
 
-            else:
-
-                conexao = obter_conexao()
-                cursor = conexao.cursor()
-
-                cursor.execute(
-                    """
-                    SELECT id, senha_hash, primeiro_acesso
-                    FROM Usuarios
-                    WHERE email = %s
-                    """,
-                    (email,)
+                btn_login = st.form_submit_button(
+                    "🚀 Entrar no Sistema",
+                    use_container_width=True,
+                    type="primary"
                 )
 
-                usuario = cursor.fetchone()
-                conexao.close()
+            if btn_login:
 
-                if usuario:
+                if not email or not senha:
 
-                    u_id, hash_banco, prim_acesso = usuario
+                    st.error(
+                        "❌ Por favor, preencha o e-mail e a senha."
+                    )
 
-                    if _hash_senha(senha) == hash_banco:
+                else:
 
-                        st.session_state.usuario_id = u_id
-                        st.session_state.email_logado = email
-                        st.session_state.primeiro_acesso = prim_acesso
+                    conexao = obter_conexao()
+                    cursor = conexao.cursor()
 
-                        st.toast(
-                            "🔓 Login efetuado com sucesso!",
-                            icon="✅"
-                        )
+                    cursor.execute(
+                        """
+                        SELECT id, senha_hash, primeiro_acesso
+                        FROM Usuarios
+                        WHERE email = %s
+                        """,
+                        (email,)
+                    )
 
-                        st.rerun()
+                    usuario = cursor.fetchone()
+
+                    cursor.close()
+                    conexao.close()
+
+                    if usuario:
+
+                        u_id, hash_banco, prim_acesso = usuario
+
+                        if _hash_senha(senha) == hash_banco:
+
+                            st.session_state.usuario_id = u_id
+                            st.session_state.email_logado = email
+                            st.session_state.primeiro_acesso = prim_acesso
+
+                            st.toast(
+                                "🔓 Login efetuado com sucesso!",
+                                icon="✅"
+                            )
+
+                            st.rerun()
+
+                        else:
+
+                            st.error(
+                                "❌ Senha incorreta. Tente novamente."
+                            )
 
                     else:
 
                         st.error(
-                            "❌ Senha incorreta. Tente novamente."
+                            "❌ E-mail não encontrado no sistema."
                         )
+
+        # ---------------------------------------------------------------------
+        # ABA 2 - NOVO CADASTRO
+        # ---------------------------------------------------------------------
+
+        with aba2:
+
+            with st.form(key="form_cad_v33"):
+
+                st.markdown("### 📝 Criar nova conta")
+
+                novo_email = st.text_input(
+                    "E-mail para cadastro",
+                    key="cad_email_v33"
+                ).strip().lower()
+
+                st.markdown(
+                    "<br />",
+                    unsafe_allow_html=True
+                )
+
+                btn_cad = st.form_submit_button(
+                    "✨ Criar Minha Conta",
+                    use_container_width=True,
+                    type="primary"
+                )
+
+            if btn_cad:
+
+                if not novo_email or "@" not in novo_email:
+
+                    st.error(
+                        "❌ Por favor, digite um e-mail válido."
+                    )
 
                 else:
 
-                    st.error(
-                        "❌ E-mail não encontrado no sistema."
-                    )
+                    senha_prov = gerar_senha_provisoria(8)
+                    senha_hash = _hash_senha(senha_prov)
 
-        st.markdown(
-            """
-            <div>
-                Esqueceu sua senha? Acesse a aba
-                <span>🛡️ Redefinir Senha</span> no topo.
-            </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+                    conexao = obter_conexao()
+                    cursor = conexao.cursor()
 
-    # =========================================================================
-    # ABA 2: NOVO CADASTRO
-    # =========================================================================
+                    try:
 
-    with aba2:
+                        cursor.execute(
+                            """
+                            INSERT INTO Usuarios
+                            (email, senha_hash, primeiro_acesso)
+                            VALUES (%s, %s, 1)
+                            """,
+                            (novo_email, senha_hash)
+                        )
 
-        st.markdown(
-            """
-            <div>
-                <div>📝 Criar nova conta</div>
-                <div>
-                    Cadastre seu e-mail para receber a senha provisória de acesso.
-                </div>
-            """,
-            unsafe_allow_html=True
-        )
+                        conexao.commit()
 
-        with st.form(key="form_cad_v24"):
+                        email_enviado = enviar_senha_provisoria_email(
+                            novo_email,
+                            senha_prov
+                        )
 
-            novo_email = st.text_input(
-                "E-mail para cadastro",
-                key="cad_email_v24",
-                placeholder="seu.email@exemplo.com"
-            ).strip().lower()
+                        st.toast(
+                            "Conta criada com sucesso!",
+                            icon="✅"
+                        )
 
-            st.markdown(
-                "<div></div>",
-                unsafe_allow_html=True
-            )
+                        if email_enviado:
 
-            btn_cad = st.form_submit_button(
-                "✨ Criar Minha Conta",
-                use_container_width=True,
-                type="primary"
-            )
+                            st.success(
+                                f"✅ Conta criada! A senha provisória "
+                                f"foi enviada para **{novo_email}**."
+                            )
 
-        if btn_cad:
+                        else:
 
-            if not novo_email or "@" not in novo_email:
+                            st.warning(
+                                "⚠️ Conta criada! Utilize a senha "
+                                "provisória abaixo para seu primeiro acesso:"
+                            )
 
-                st.error(
-                    "❌ Por favor, digite um e-mail válido."
+                            st.code(senha_prov)
+
+                    except (IntegrityError, Exception):
+
+                        st.error(
+                            "❌ Este e-mail já está cadastrado "
+                            "no banco de dados."
+                        )
+
+                    finally:
+
+                        cursor.close()
+                        conexao.close()
+
+        # ---------------------------------------------------------------------
+        # ABA 3 - REDEFINIÇÃO DE SENHA
+        # ---------------------------------------------------------------------
+
+        with aba3:
+
+            with st.form(key="form_rec_v33"):
+
+                st.markdown("### 🛡️ Redefinir Senha")
+
+                rec_email = st.text_input(
+                    "E-mail cadastrado",
+                    key="rec_email_v33"
+                ).strip().lower()
+
+                st.markdown(
+                    "<br />",
+                    unsafe_allow_html=True
                 )
 
-            else:
+                btn_rec = st.form_submit_button(
+                    "🔑 Gerar Nova Senha Provisória",
+                    type="primary",
+                    use_container_width=True
+                )
 
-                senha_prov = gerar_senha_provisoria(8)
-                senha_hash = _hash_senha(senha_prov)
+            if btn_rec:
 
-                conexao = obter_conexao()
-                cursor = conexao.cursor()
+                if not rec_email or "@" not in rec_email:
 
-                try:
+                    st.error(
+                        "❌ Por favor, preencha um e-mail válido."
+                    )
+
+                else:
+
+                    conexao = obter_conexao()
+                    cursor = conexao.cursor()
 
                     cursor.execute(
                         """
-                        INSERT INTO Usuarios (
-                            email,
-                            senha_hash,
-                            primeiro_acesso
-                        )
-                        VALUES (%s, %s, 1)
-                        """,
-                        (novo_email, senha_hash)
-                    )
-
-                    conexao.commit()
-
-                    email_enviado = enviar_senha_provisoria_email(
-                        novo_email,
-                        senha_prov
-                    )
-
-                    st.toast("Conta criada com sucesso!", icon="✅")
-
-                    if email_enviado:
-                        st.success(
-                            f"Conta criada! A senha provisória foi enviada para {novo_email}."
-                        )
-                    else:
-                        st.warning(
-                            "A conta foi criada, mas o envio de e-mail não está configurado. "
-                            "Use a senha provisória exibida abaixo para o primeiro acesso."
-                        )
-                        st.code(senha_prov)
-
-                except (IntegrityError, Exception):
-
-                    st.error(
-                        "❌ Este e-mail já está cadastrado no banco de dados."
-                    )
-
-                finally:
-
-                    conexao.close()
-
-        st.markdown(
-            "</div>",
-            unsafe_allow_html=True
-        )
-
-    # =========================================================================
-    # ABA 3: RECUPERAÇÃO DE SENHA
-    # =========================================================================
-
-    with aba3:
-
-        st.markdown(
-            """
-            <div>
-                <div>🛡️ Recuperar / Redefinir Senha</div>
-                <div>
-                    Digite seu e-mail cadastrado para receber uma nova senha provisória.
-                </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        with st.form(key="form_rec_v24"):
-
-            rec_email = st.text_input(
-                "E-mail cadastrado",
-                key="rec_email_v24",
-                placeholder="seu.email@exemplo.com"
-            ).strip().lower()
-
-            st.markdown(
-                "<div></div>",
-                unsafe_allow_html=True
-            )
-
-            btn_rec = st.form_submit_button(
-                "🔑 Enviar E-mail de Confirmação",
-                type="primary",
-                use_container_width=True
-            )
-
-        if btn_rec:
-
-            if not rec_email or "@" not in rec_email:
-
-                st.error(
-                    "❌ Por favor, preencha um e-mail válido."
-                )
-
-            else:
-
-                conexao = obter_conexao()
-                cursor = conexao.cursor()
-
-                cursor.execute(
-                    """
-                    SELECT id
-                    FROM Usuarios
-                    WHERE email = %s
-                    """,
-                    (rec_email,)
-                )
-
-                usr = cursor.fetchone()
-
-                if usr:
-
-                    nova_prov = gerar_senha_provisoria(8)
-                    novo_hash = _hash_senha(nova_prov)
-
-                    cursor.execute(
-                        """
-                        UPDATE Usuarios
-                        SET senha_hash = %s,
-                            primeiro_acesso = 1
+                        SELECT id
+                        FROM Usuarios
                         WHERE email = %s
                         """,
-                        (novo_hash, rec_email)
+                        (rec_email,)
                     )
 
-                    conexao.commit()
-                    conexao.close()
+                    usr = cursor.fetchone()
 
-                    email_enviado = enviar_senha_provisoria_email(
-                        rec_email,
-                        nova_prov
-                    )
+                    if usr:
 
-                    if email_enviado:
-                        st.success(
-                            "Uma nova senha provisória foi enviada para seu e-mail."
+                        nova_prov = gerar_senha_provisoria(8)
+                        novo_hash = _hash_senha(nova_prov)
+
+                        cursor.execute(
+                            """
+                            UPDATE Usuarios
+                            SET senha_hash = %s,
+                                primeiro_acesso = 1
+                            WHERE email = %s
+                            """,
+                            (novo_hash, rec_email)
                         )
+
+                        conexao.commit()
+
+                        cursor.close()
+                        conexao.close()
+
+                        email_enviado = enviar_senha_provisoria_email(
+                            rec_email,
+                            nova_prov
+                        )
+
+                        if email_enviado:
+
+                            st.success(
+                                "✅ Uma nova senha provisória foi "
+                                "enviada para o seu e-mail."
+                            )
+
+                        else:
+
+                            st.warning(
+                                "⚠️ Nova senha provisória gerada "
+                                "com sucesso:"
+                            )
+
+                            st.code(nova_prov)
+
                     else:
-                        st.warning(
-                            "O envio de e-mail não está configurado. "
-                            "Sua senha provisória foi gerada abaixo."
+
+                        cursor.close()
+                        conexao.close()
+
+                        st.error(
+                            "❌ E-mail não encontrado no sistema."
                         )
-                        st.code(nova_prov)
 
-                else:
 
-                    conexao.close()
-
-                    st.error(
-                        "❌ E-mail não encontrado no sistema."
-                    )
-
-    st.stop()
-    # =============================================================================
-# BLOQUEIO DE PRIMEIRO ACESSO (VALIDAÇÃO RÍGIDA LGPD)
+# =============================================================================
+# BLOQUEIO DE PRIMEIRO ACESSO
+# TROCA DE SENHA - LGPD REQ-EXT-01
 # =============================================================================
 
 elif st.session_state.primeiro_acesso == 1:
@@ -802,25 +659,24 @@ elif st.session_state.primeiro_acesso == 1:
         )
 
         st.warning(
-            "⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**"
+            "⚠️ **Primeiro Acesso Detectado "
+            "(Conformidade LGPD)**"
         )
 
         st.info(
-            "Por motivos de segurança, é obrigatório redefinir sua senha "
-            "provisória atendendo aos requisitos mínimos de complexidade:"
+            "Por motivos de segurança, você deve redefinir sua "
+            "senha provisória preenchendo os requisitos:"
         )
 
-        st.markdown(
-            """
+        st.markdown("""
             - Mínimo de **6 caracteres**
             - Pelo menos **1 letra maiúscula** (A-Z)
-            - Pelo menos **1 letra minúscula** (a-z)
+              e **1 letra minúscula** (a-z)
             - Pelo menos **1 número** (0-9)
-            - Pelo menos **1 caractere especial** (`!@#$%^&*` etc.)
-            """
-        )
+              e **1 caractere especial** (`!@#$%^&*`)
+        """)
 
-        with st.form(key="form_primeiro_acesso_lgpd_v24"):
+        with st.form(key="form_primeiro_acesso_lgpd_v33"):
 
             nova_senha = st.text_input(
                 "Digite sua NOVA senha",
@@ -845,7 +701,9 @@ elif st.session_state.primeiro_acesso == 1:
 
         if btn_pa:
 
-            valida, msg_erro = validar_complexidade_senha(nova_senha)
+            valida, msg_erro = validar_complexidade_senha(
+                nova_senha
+            )
 
             if not valida:
 
@@ -854,8 +712,7 @@ elif st.session_state.primeiro_acesso == 1:
             elif nova_senha != confirma_senha:
 
                 st.error(
-                    "❌ As senhas digitadas não coincidem. "
-                    "Verifique a confirmação."
+                    "❌ As senhas digitadas não coincidem."
                 )
 
             else:
@@ -879,22 +736,22 @@ elif st.session_state.primeiro_acesso == 1:
                 )
 
                 conexao.commit()
+
+                cursor.close()
                 conexao.close()
 
                 st.session_state.primeiro_acesso = 0
 
                 st.toast(
-                    "🔑 Senha salva com sucesso!",
+                    "🔑 Senha redefinida com sucesso!",
                     icon="✅"
                 )
 
                 st.success(
-                    "✅ Senha atualizada! Acessando o painel..."
+                    "✅ Senha atualizada! Carregando o painel..."
                 )
 
                 st.rerun()
-
-
 # =============================================================================
 # PAINEL DE NAVEGAÇÃO E SISTEMA COMPLETO
 # =============================================================================
@@ -914,25 +771,16 @@ else:
         st.session_state.menu = destino
         st.session_state.nav_radio_key = destino
 
-    # =========================================================================
-    # MENU LATERAL
-    # =========================================================================
-
     with st.sidebar:
 
-        st.markdown(
-            f"""
+        st.markdown("""
             <div>
-                {logo_html("brand-bag-img") if LOGO_PATH.exists() else '<div>💰</div>'}
-                <div>
-                    <div>FAMT <span>CONTROL</span></div>
-                </div>
+                <div>💰</div>
+                <div>FAMT <span>CONTROL</span></div>
             </div>
-            """,
-            unsafe_allow_html=True
-        )
+        """, unsafe_allow_html=True)
 
-        st.markdown("<div></div>", unsafe_allow_html=True)
+        st.markdown("<hr />", unsafe_allow_html=True)
 
         opcoes_menu = [
             "Painel",
@@ -962,34 +810,28 @@ else:
             label_visibility="collapsed"
         )
 
-        st.markdown("<div></div>", unsafe_allow_html=True)
+        st.markdown("<br /><br />", unsafe_allow_html=True)
 
         st.markdown(
-            """
+            f"""
             <div>
-                <div>♧</div>
-                <div>Pequenos hábitos geram<br />grandes conquistas!</div>
-                <div></div>
+                👤 Conectado como:<br />
+                <b>{st.session_state.email_logado}</b>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        st.markdown(
-            "<div>👤 " + st.session_state.email_logado + "</div>",
-            unsafe_allow_html=True
-        )
+        st.markdown("<br />", unsafe_allow_html=True)
 
-        if st.button("Sair", use_container_width=True):
-
+        if st.button("🚪 Sair da Conta", use_container_width=True):
             st.session_state.usuario_id = None
             st.session_state.email_logado = None
             st.session_state.primeiro_acesso = 0
-
             st.rerun()
 
     # =========================================================================
-    # CONFIGURAÇÃO DO PERÍODO
+    # CONFIGURAÇÃO DE PERÍODO E CALENDÁRIO
     # =========================================================================
 
     agora = datetime.now()
@@ -1014,15 +856,7 @@ else:
     d_inicio = st.session_state.data_inicio_sel
     d_fim = st.session_state.data_fim_sel
 
-    if d_inicio > d_fim:
-
-        d_inicio, d_fim = d_fim, d_inicio
-
-        st.session_state.data_inicio_sel = d_inicio
-        st.session_state.data_fim_sel = d_fim
-
     def moeda(valor):
-
         return (
             f"R$ {valor:,.2f}"
             .replace(",", "X")
@@ -1031,21 +865,24 @@ else:
         )
 
     # =========================================================================
-    # CONSULTA DOS LANÇAMENTOS NO MYSQL
+    # CONSULTA DOS LANÇAMENTOS COM SANITIZAÇÃO DE DADOS
     # =========================================================================
 
     conexao = obter_conexao()
     cursor = conexao.cursor()
 
-    cursor.execute(
-        """
-        SELECT id, tipo, valor, categoria, descricao, data
+    cursor.execute("""
+        SELECT
+            id,
+            UPPER(tipo),
+            valor,
+            categoria,
+            descricao,
+            data
         FROM Transacoes
         WHERE usuario_id = %s
         ORDER BY data DESC;
-        """,
-        (st.session_state.usuario_id,)
-    )
+    """, (st.session_state.usuario_id,))
 
     historico = cursor.fetchall()
 
@@ -1115,7 +952,7 @@ else:
         total_receitas = (
             float(
                 df_calculo.loc[
-                    df_calculo["Tipo"] == "Receita",
+                    df_calculo["Tipo"] == "RECEITA",
                     "Valor"
                 ].sum()
             )
@@ -1126,7 +963,7 @@ else:
         total_despesas = (
             float(
                 df_calculo.loc[
-                    df_calculo["Tipo"] == "Despesa",
+                    df_calculo["Tipo"] == "DESPESA",
                     "Valor"
                 ].sum()
             )
@@ -1153,10 +990,6 @@ else:
 
     saldo_liquido = total_receitas - total_despesas
 
-    # =========================================================================
-    # META FINANCEIRA
-    # =========================================================================
-
     if "meta_mes" not in st.session_state:
         st.session_state.meta_mes = 1000.00
 
@@ -1167,155 +1000,69 @@ else:
         if saldo_liquido > 0 and meta_mes > 0
         else 0
     )
+
     # =========================================================================
-    # CABEÇALHO SUPERIOR
+    # CABEÇALHO DA MARCA, NOTIFICAÇÕES E SELETOR DE DATA
     # =========================================================================
 
-    col_welcome, col_notification = st.columns([2, 3])
+    col_brand, col_notif, col_date = st.columns([3.0, 1.0, 1.3])
 
-    with col_welcome:
-        st.markdown(
-            """
+    with col_brand:
+
+        st.markdown("""
             <div>
                 <div>
-                    <div>👋</div>
-                    <div>
-                        <div>Olá, Seja Bem-Vindo(a)!</div>
-                        <div>Aqui está um resumo da sua vida financeira.</div>
-                    </div>
+                    <h1>FAMT <span>Control</span></h1>
+                    <p>Seu dinheiro sob controle • Squad FAMT</p>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
+        """, unsafe_allow_html=True)
+
+    with col_notif:
+
+        qtd_notif = 1 if saldo_liquido < 0 else 0
+
+        rotulo_sininho = (
+            "🚨 (1)"
+            if saldo_liquido < 0
+            else "🔔"
         )
 
-    # =========================================================================
-    # NOTIFICAÇÕES DINÂMICAS
-    # =========================================================================
+        with st.popover(
+            rotulo_sininho,
+            use_container_width=True
+        ):
 
-    if "notificacoes_lidas" not in st.session_state:
-        st.session_state.notificacoes_lidas = False
+            st.markdown("### 🔔 Central de Notificações")
 
-    lista_notificacoes = []
-
-    if saldo_liquido < 0:
-        lista_notificacoes.append({
-            "titulo": "🚨 Saldo Devedor",
-            "texto": (
-                f"Seu saldo está em {moeda(saldo_liquido)}. "
-                "Recomenda-se conter despesas."
-            )
-        })
-
-    if not df_calculo.empty:
-        ultima_trans = df_calculo.iloc[0]
-
-        tipo_lbl = (
-            "Receita"
-            if ultima_trans["Tipo"] == "Receita"
-            else "Despesa"
-        )
-
-        lista_notificacoes.append({
-            "titulo": f"📌 Último Lançamento ({tipo_lbl})",
-            "texto": (
-                f"{ultima_trans['Descrição']} - "
-                f"{moeda(float(ultima_trans['Valor']))}"
-            )
-        })
-
-    else:
-        lista_notificacoes.append({
-            "titulo": "ℹ️ Bem-vindo ao FAMT Control",
-            "texto": (
-                "Cadastre suas primeiras movimentações "
-                "na aba 'Lançar'."
-            )
-        })
-
-    qtd_notif = (
-        0
-        if st.session_state.notificacoes_lidas
-        else len(lista_notificacoes)
-    )
-
-    badge_sininho = (
-        f"🔔 {qtd_notif}"
-        if qtd_notif > 0
-        else "🔔"
-    )
-
-    with col_notification:
-        st.markdown("<div></div>", unsafe_allow_html=True)
-
-        with st.popover(badge_sininho):
-            st.markdown("### 🔔 Notificações")
-
-            for notif in lista_notificacoes:
-                status_tag = (
-                    " <span>(Nova)</span>"
-                    if not st.session_state.notificacoes_lidas
-                    else " <span>(Lida)</span>"
-                )
+            if saldo_liquido < 0:
 
                 st.markdown(
-                    f"**{notif['titulo']}**{status_tag}<br />"
-                    f"{notif['texto']}",
+                    f"""
+                    <div>
+                        🚨 <b>Saldo Devedor (REQ-BUS-01):</b><br />
+                        Suas despesas superam receitas em
+                        <b>{moeda(abs(saldo_liquido))}</b>.
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
 
-            st.markdown("<div></div>", unsafe_allow_html=True)
+            elif total_receitas > 0:
 
-            if not st.session_state.notificacoes_lidas:
-                if st.button(
-                    "✓ Marcar como lidas",
-                    key="btn_limpar_notif",
-                    use_container_width=True
-                ):
-                    st.session_state.notificacoes_lidas = True
-
-                    st.toast(
-                        "✅ Notificações marcadas como lidas!"
-                    )
-
-                    st.rerun()
-
-            else:
-                st.caption(
-                    "✓ Todas as notificações estão marcadas como lidas."
+                st.success(
+                    f"🟢 **Saldo Positivo:** "
+                    f"Saldo mantido em **{moeda(saldo_liquido)}**."
                 )
 
-            st.button(
-                "🔍 Ver todas as notificações →",
-                key="btn_ver_todas_notif",
-                type="secondary",
-                use_container_width=True,
-                on_click=navegar_para,
-                args=("Notificações",)
-            )
+            else:
 
-    # =========================================================================
-    # CABEÇALHO DA MARCA + PERÍODO COM CALENDÁRIO
-    # =========================================================================
-
-    col_brand, col_date = st.columns([3.5, 1.2])
-
-    with col_brand:
-        st.markdown(
-            f"""
-            <div>
-                {logo_html("dashboard-logo-img") if LOGO_PATH.exists() else '<div>💰</div>'}
-                <div>
-                    <div>FAMT <span>Control</span></div>
-                    <div>Seu dinheiro sob controle.</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+                st.info(
+                    "ℹ️ Cadastre lançamentos na aba "
+                    "'Lançar' para visualizar notificações."
+                )
 
     with col_date:
-        st.markdown("<div></div>", unsafe_allow_html=True)
 
         rotulo_popover = (
             f"📅 {d_inicio.strftime('%d/%m/%Y')} - "
@@ -1326,13 +1073,8 @@ else:
             rotulo_popover,
             use_container_width=True
         ):
-            st.markdown(
-                "### 📅 Selecionar Período no Calendário"
-            )
 
-            st.caption(
-                "Escolha as datas inicial e final no calendário abaixo:"
-            )
+            st.markdown("### 📅 Selecionar Período")
 
             datas_selecionadas = st.date_input(
                 "Intervalo de Análise:",
@@ -1341,95 +1083,123 @@ else:
                     st.session_state.data_fim_sel
                 ),
                 format="DD/MM/YYYY",
-                key="input_calendario_header_v15"
+                key="input_calendario_header_v33"
             )
 
             if (
                 isinstance(datas_selecionadas, (list, tuple))
                 and len(datas_selecionadas) == 2
             ):
+
                 d1, d2 = datas_selecionadas
 
                 if (
                     d1 != st.session_state.data_inicio_sel
                     or d2 != st.session_state.data_fim_sel
                 ):
+
                     st.session_state.data_inicio_sel = d1
                     st.session_state.data_fim_sel = d2
 
                     st.rerun()
 
-    st.markdown("<br />", unsafe_allow_html=True)
-
-    if st.button(
-        "📅 Voltar ao Mês Atual",
-        key="btn_reset_calendario_v15",
-        type="secondary",
-        use_container_width=True
-    ):
-        st.session_state.data_inicio_sel = primeiro_dia_mes_atual.date()
-        st.session_state.data_fim_sel = ultimo_dia_mes_atual.date()
-
-        st.rerun()
-
     # =========================================================================
-    # PAINEL PRINCIPAL
+    # TELA: PAINEL PRINCIPAL
     # =========================================================================
 
     if menu == "Painel":
 
-        st.title("Visão geral financeira")
-        st.caption("Acompanhe suas receitas, despesas e objetivos.")
+        # ---------------------------------------------------------------------
+        # ALERTA CONTÁBIL
+        # ---------------------------------------------------------------------
 
-        c1, c2, c3 = st.columns(3)
+        if saldo_liquido < 0:
 
-        c1.metric(
-            "↗️ Receitas",
-            moeda(total_receitas)
-        )
-
-        c2.metric(
-            "↘️ Despesas",
-            moeda(total_despesas)
-        )
-
-        c3.metric(
-            "🎯 Meta financeira",
-            moeda(meta_mes)
-        )
-
-        st.divider()
-
-        esquerda, direita = st.columns([1.5, 1])
+            st.markdown(
+                f"""
+                <div>
+                    🚨 <b>Alerta Contábil Crítico (REQ-BUS-01):</b><br />
+                    Seu saldo acumulado no período está
+                    <b>NEGATIVO em {moeda(saldo_liquido)}</b>
+                    (Despesas: {moeda(total_despesas)}
+                    vs. Receitas: {moeda(total_receitas)}).
+                    Recomenda-se conter gastos não essenciais imediatamente.
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
         # ---------------------------------------------------------------------
-        # GRÁFICO DE RECEITAS E DESPESAS
+        # CARDS FINANCEIROS
         # ---------------------------------------------------------------------
+
+        c1, c2, c3 = st.columns(3, gap="small")
+
+        with c1:
+
+            st.markdown(
+                f"""
+                <div>
+                    <div>↗️</div>
+                    <div>Receitas</div>
+                    <div>{moeda(total_receitas)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with c2:
+
+            st.markdown(
+                f"""
+                <div>
+                    <div>↘️</div>
+                    <div>Despesas</div>
+                    <div>{moeda(total_despesas)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        with c3:
+
+            st.markdown(
+                f"""
+                <div>
+                    <div>🎯</div>
+                    <div>Meta Financeira</div>
+                    <div>{moeda(meta_mes)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<br />", unsafe_allow_html=True)
+
+        # ---------------------------------------------------------------------
+        # GRÁFICOS
+        # ---------------------------------------------------------------------
+
+        esquerda, direita = st.columns(
+            [1.5, 1],
+            gap="medium"
+        )
 
         with esquerda:
 
-            st.subheader("Receitas x despesas")
+            st.subheader("📊 Receitas x Despesas")
 
             if not df_calculo.empty:
 
-                grafico = df_calculo.copy()
+                df_graf = df_calculo.copy()
 
-                grafico["Data_dt"] = pd.to_datetime(
-                    grafico["Data_dt"],
-                    errors="coerce"
-                )
-
-                grafico = grafico.dropna(
-                    subset=["Data_dt"]
-                )
-
-                grafico["Mês"] = (
-                    grafico["Data_dt"]
+                df_graf["Mês"] = (
+                    df_graf["Data_dt"]
                     .dt.strftime("%m/%Y")
                 )
 
                 mensal = (
-                    grafico.pivot_table(
+                    df_graf.pivot_table(
                         index="Mês",
                         columns="Tipo",
                         values="Valor",
@@ -1439,51 +1209,49 @@ else:
                     .reset_index()
                 )
 
-                for tipo_col in ["Receita", "Despesa"]:
+                for t_col in ["RECEITA", "DESPESA"]:
 
-                    if tipo_col not in mensal.columns:
-                        mensal[tipo_col] = 0.0
+                    if t_col not in mensal.columns:
+                        mensal[t_col] = 0.0
 
                 fig = go.Figure()
 
                 fig.add_trace(
                     go.Bar(
                         x=mensal["Mês"],
-                        y=mensal["Receita"],
+                        y=mensal["RECEITA"],
                         name="Receitas",
-                        marker_color="#43C6A6"
+                        marker_color="#10B981"
                     )
                 )
 
                 fig.add_trace(
                     go.Bar(
                         x=mensal["Mês"],
-                        y=mensal["Despesa"],
+                        y=mensal["DESPESA"],
                         name="Despesas",
-                        marker_color="#7C4DFF"
+                        marker_color="#EF4444"
                     )
                 )
 
                 fig.update_layout(
                     barmode="group",
-                    height=340,
+                    height=300,
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    font_color="#E8E7F5",
+                    font_color="#E4E1F5",
                     margin=dict(
-                        l=8,
-                        r=8,
-                        t=25,
-                        b=8
+                        l=10,
+                        r=10,
+                        t=20,
+                        b=10
                     ),
                     legend=dict(
                         orientation="h",
-                        y=1.12
+                        y=1.15
                     ),
-                    xaxis_title=None,
-                    yaxis_title=None,
                     yaxis=dict(
-                        gridcolor="#30314D"
+                        gridcolor="#282946"
                     )
                 )
 
@@ -1496,19 +1264,15 @@ else:
             else:
 
                 st.info(
-                    "Ainda não há movimentações neste período."
+                    "Nenhum lançamento no período para exibir o gráfico."
                 )
-
-        # ---------------------------------------------------------------------
-        # GRÁFICO DE DESPESAS POR CATEGORIA
-        # ---------------------------------------------------------------------
 
         with direita:
 
-            st.subheader("Despesas por categoria")
+            st.subheader("🍩 Despesas por Categoria")
 
             despesas = df_calculo[
-                df_calculo["Tipo"] == "Despesa"
+                df_calculo["Tipo"] == "DESPESA"
             ].copy()
 
             if not despesas.empty:
@@ -1517,48 +1281,33 @@ else:
                     despesas.groupby(
                         "Categoria",
                         as_index=False
-                    )["Valor"]
-                    .sum()
-                    .sort_values(
-                        "Valor",
-                        ascending=False
-                    )
+                    )["Valor"].sum()
                 )
 
                 fig_cat = px.pie(
                     categorias,
                     names="Categoria",
                     values="Valor",
-                    hole=0.66,
+                    hole=0.6,
                     color_discrete_sequence=[
-                        "#7C4DFF",
-                        "#43C6A6",
-                        "#3B9EF8",
-                        "#F4A340",
-                        "#E84DA8",
-                        "#FF647C"
+                        "#EF4444",
+                        "#7C3AED",
+                        "#3B82F6",
+                        "#F59E0B",
+                        "#EC4899"
                     ]
                 )
 
                 fig_cat.update_layout(
-                    height=340,
+                    height=300,
                     paper_bgcolor="rgba(0,0,0,0)",
-                    font_color="#E8E7F5",
+                    font_color="#E4E1F5",
                     margin=dict(
                         l=5,
                         r=5,
-                        t=20,
-                        b=5
-                    ),
-                    legend=dict(
-                        orientation="h",
-                        y=-0.12
+                        t=10,
+                        b=10
                     )
-                )
-
-                fig_cat.update_traces(
-                    textposition="inside",
-                    textinfo="percent"
                 )
 
                 st.plotly_chart(
@@ -1570,111 +1319,56 @@ else:
             else:
 
                 st.info(
-                    "Cadastre despesas para visualizar as categorias."
+                    "Cadastre despesas para visualizar "
+                    "o gráfico por categoria."
                 )
 
         # ---------------------------------------------------------------------
-        # ÚLTIMAS MOVIMENTAÇÕES
+        # PROGRESSO DA META
         # ---------------------------------------------------------------------
 
-        st.divider()
+        st.markdown("<br />", unsafe_allow_html=True)
 
-        st.subheader("Últimas movimentações")
+        st.subheader("🎯 Progresso da Meta")
 
-        if historico_filtrado:
-
-            recentes = pd.DataFrame(
-                historico_filtrado,
-                columns=[
-                    "ID",
-                    "Tipo",
-                    "Valor",
-                    "Categoria",
-                    "Descrição",
-                    "Data"
-                ]
-            ).head(6)
-
-            st.dataframe(
-                recentes[
-                    [
-                        "Data",
-                        "Tipo",
-                        "Descrição",
-                        "Categoria",
-                        "Valor"
-                    ]
-                ],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Valor": st.column_config.NumberColumn(
-                        "Valor",
-                        format="R$ %.2f"
-                    )
-                }
-            )
-
-        else:
-
-            st.info(
-                "Você ainda não possui lançamentos neste período."
-            )
-
-        # ---------------------------------------------------------------------
-        # PROGRESSO DA META FINANCEIRA
-        # ---------------------------------------------------------------------
-
-        st.divider()
-
-        st.subheader("Progresso da meta")
-
-        st.progress(
-            progresso_meta / 100
-        )
-
-        st.caption(
-            f"{progresso_meta}% — saldo de "
-            f"{moeda(saldo_liquido)} em relação à meta de "
-            f"{moeda(meta_mes)}."
-        )
+        st.progress(progresso_meta / 100)
 
         if saldo_liquido < 0:
 
-            st.warning(
-                "Seu saldo está negativo neste período. "
-                "Revise as despesas e planeje os próximos lançamentos."
-            )
-
-        elif total_receitas > 0:
-
-            taxa_economia = (
-                saldo_liquido / total_receitas
-            ) * 100
-
-            st.success(
-                f"Seu saldo está positivo. Você manteve "
-                f"{taxa_economia:.1f}% das receitas neste período."
+            st.markdown(
+                f"""
+                <div>
+                    🚨 0% concluídos — Saldo atual em
+                    <b>{moeda(saldo_liquido)}</b>
+                    (Saldo devedor impede o alcance da meta de
+                    {moeda(meta_mes)}).
+                </div>
+                """,
+                unsafe_allow_html=True
             )
 
         else:
 
-            st.info(
-                "Cadastre receitas para acompanhar seu equilíbrio financeiro."
+            st.caption(
+                f"{progresso_meta}% concluídos — "
+                f"Saldo acumulado de {moeda(saldo_liquido)} "
+                f"em relação à meta de {moeda(meta_mes)}."
             )
 
+        st.markdown("<br />", unsafe_allow_html=True)
+
         # ---------------------------------------------------------------------
-        # ATALHOS DO PAINEL
+        # BOTÕES DE ACESSO RÁPIDO
         # ---------------------------------------------------------------------
 
-        ac1, ac2, ac3 = st.columns(3)
+        ac1, ac2, ac3 = st.columns(3, gap="small")
 
         with ac1:
 
             st.button(
-                "＋ Novo lançamento",
+                "＋ Novo Lançamento",
                 use_container_width=True,
-                key="painel_novo",
+                type="primary",
                 on_click=navegar_para,
                 args=("Lançar",)
             )
@@ -1682,9 +1376,9 @@ else:
         with ac2:
 
             st.button(
-                "Ver extrato",
+                "🧾 Ver Extrato",
                 use_container_width=True,
-                key="painel_extrato",
+                type="primary",
                 on_click=navegar_para,
                 args=("Extrato e Edição",)
             )
@@ -1692,9 +1386,9 @@ else:
         with ac3:
 
             st.button(
-                "Ver gráficos",
+                "📊 Ver Gráficos",
                 use_container_width=True,
-                key="painel_graficos",
+                type="primary",
                 on_click=navegar_para,
                 args=("Gráficos",)
             )
@@ -1704,27 +1398,32 @@ else:
 
     elif menu == "Lançar":
 
-        st.title("Novo lançamento")
-        st.caption("Registre uma receita ou despesa na sua conta.")
+        st.title("＋ Novo Lançamento")
 
-        with st.form("form_lancamento", clear_on_submit=True):
+        st.caption(
+            "Cadastre receitas ou despesas com atualização automática do saldo."
+        )
+
+        with st.form(
+            "form_lancamento_v33",
+            clear_on_submit=True
+        ):
 
             tipo = st.selectbox(
-                "Tipo de movimentação",
+                "Tipo de Movimentação",
                 ["Despesa", "Receita"]
             )
 
             valor = st.number_input(
                 "Valor (R$)",
                 min_value=0.01,
-                value=1.00,
-                step=1.00,
-                format="%.2f"
+                value=50.00,
+                step=10.00
             )
 
             descricao = st.text_input(
-                "Descrição",
-                max_chars=255
+                "Descrição detalhada",
+                placeholder="Ex: Mensalidade, Almoço, Estágio"
             )
 
             categoria = st.selectbox(
@@ -1739,14 +1438,14 @@ else:
                     "Salário",
                     "Freelance",
                     "Contas",
-                    "Compras",
                     "Outros"
                 ]
             )
 
             data_lancamento = st.date_input(
                 "Data",
-                value=date.today()
+                value=date.today(),
+                format="DD/MM/YYYY"
             )
 
             hora_lancamento = st.time_input(
@@ -1758,7 +1457,7 @@ else:
             )
 
             salvar = st.form_submit_button(
-                "Salvar lançamento",
+                "💾 Salvar Movimentação",
                 type="primary",
                 use_container_width=True
             )
@@ -1768,7 +1467,7 @@ else:
             if not descricao.strip():
 
                 st.error(
-                    "Informe uma descrição para o lançamento."
+                    "❌ Por favor, informe uma descrição para o lançamento."
                 )
 
             else:
@@ -1783,38 +1482,41 @@ else:
                         hora_lancamento
                     )
 
-                    cursor.execute(
-                        """
-                        INSERT INTO Transacoes
-                            (
-                                usuario_id,
-                                valor,
-                                tipo,
-                                data,
-                                descricao,
-                                categoria
-                            )
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            st.session_state.usuario_id,
+                    tipo_sanitizado = tipo.strip().upper()
+
+                    cursor.execute("""
+                        INSERT INTO Transacoes (
+                            usuario_id,
                             valor,
                             tipo,
-                            data_hora,
-                            descricao.strip(),
+                            data,
+                            descricao,
                             categoria
                         )
-                    )
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (
+                        st.session_state.usuario_id,
+                        valor,
+                        tipo_sanitizado,
+                        data_hora,
+                        descricao.strip(),
+                        categoria
+                    ))
 
                     conexao.commit()
 
-                    st.success(
-                        "Lançamento salvo com sucesso!"
+                    st.toast(
+                        f"🎉 Lançamento de R$ {valor:.2f} salvo com sucesso!",
+                        icon="💰"
                     )
+
+                    st.session_state.menu = "Painel"
 
                     st.rerun()
 
                 except Exception as e:
+
+                    conexao.rollback()
 
                     st.error(
                         f"Não foi possível salvar o lançamento: {e}"
@@ -1826,15 +1528,16 @@ else:
                     conexao.close()
 
     # =========================================================================
-    # TELA: EXTRATO E EDIÇÃO
+    # TELA: EXTRATO E EDIÇÃO (CRUD DIRETO NO BANCO SQL)
     # =========================================================================
 
     elif menu == "Extrato e Edição":
 
-        st.title("Extrato e edição")
+        st.title("🧾 Extrato e Edição de Lançamentos")
 
         st.caption(
-            "Consulte, edite ou exclua suas movimentações."
+            "Consulte, edite ou exclua suas movimentações "
+            "salvas no banco MySQL."
         )
 
         if historico_filtrado:
@@ -1857,6 +1560,8 @@ else:
                 hide_index=True
             )
 
+            st.markdown("---")
+
             ids = extrato["ID"].astype(int).tolist()
 
             selecionado = st.selectbox(
@@ -1864,7 +1569,10 @@ else:
                 ids,
                 format_func=lambda x: (
                     f"#{x} — "
-                    f"{extrato.loc[extrato['ID'].astype(int) == x, 'Descrição'].iloc[0]}"
+                    f"{extrato.loc[
+                        extrato['ID'].astype(int) == x,
+                        'Descrição'
+                    ].iloc[0]}"
                 )
             )
 
@@ -1872,14 +1580,14 @@ else:
                 extrato["ID"].astype(int) == int(selecionado)
             ].iloc[0]
 
-            with st.form("form_editar_lancamento"):
+            with st.form("form_editar_lancamento_v33"):
 
                 novo_tipo = st.selectbox(
                     "Tipo",
                     ["Despesa", "Receita"],
                     index=(
                         0
-                        if atual["Tipo"] == "Despesa"
+                        if atual["Tipo"] == "DESPESA"
                         else 1
                     )
                 )
@@ -1887,11 +1595,8 @@ else:
                 novo_valor = st.number_input(
                     "Valor (R$)",
                     min_value=0.01,
-                    value=max(
-                        0.01,
-                        float(atual["Valor"])
-                    ),
-                    step=1.0
+                    value=float(atual["Valor"]),
+                    step=5.0
                 )
 
                 nova_categoria = st.text_input(
@@ -1904,20 +1609,39 @@ else:
                     value=str(atual["Descrição"])
                 )
 
-                salvar_edicao = st.form_submit_button(
-                    "Salvar alterações",
-                    type="primary"
-                )
+                col_b1, col_b2 = st.columns(2)
 
-            if salvar_edicao:
+                with col_b1:
 
-                if (
-                    not nova_descricao.strip()
-                    or not nova_categoria.strip()
-                ):
+                    sub_save = st.form_submit_button(
+                        "💾 Salvar Alterações",
+                        type="primary",
+                        use_container_width=True
+                    )
+
+                with col_b2:
+
+                    sub_del = st.form_submit_button(
+                        "🗑️ Excluir Lançamento",
+                        use_container_width=True
+                    )
+
+            # -----------------------------------------------------------------
+            # ATUALIZAR LANÇAMENTO
+            # -----------------------------------------------------------------
+
+            if sub_save:
+
+                if not nova_descricao.strip():
 
                     st.error(
-                        "Descrição e categoria são obrigatórias."
+                        "Informe uma descrição para o lançamento."
+                    )
+
+                elif not nova_categoria.strip():
+
+                    st.error(
+                        "Informe uma categoria para o lançamento."
                     )
 
                 else:
@@ -1927,38 +1651,41 @@ else:
 
                     try:
 
-                        cursor.execute(
-                            """
+                        tipo_upper = novo_tipo.strip().upper()
+
+                        cursor.execute("""
                             UPDATE Transacoes
-                            SET tipo = %s,
+                            SET
+                                tipo = %s,
                                 valor = %s,
                                 categoria = %s,
                                 descricao = %s
                             WHERE id = %s
-                              AND usuario_id = %s
-                            """,
-                            (
-                                novo_tipo,
-                                novo_valor,
-                                nova_categoria.strip(),
-                                nova_descricao.strip(),
-                                int(selecionado),
-                                st.session_state.usuario_id
-                            )
-                        )
+                            AND usuario_id = %s
+                        """, (
+                            tipo_upper,
+                            novo_valor,
+                            nova_categoria.strip(),
+                            nova_descricao.strip(),
+                            int(selecionado),
+                            st.session_state.usuario_id
+                        ))
 
                         conexao.commit()
 
-                        st.success(
-                            "Lançamento atualizado."
+                        st.toast(
+                            "✅ Lançamento atualizado!",
+                            icon="💾"
                         )
 
                         st.rerun()
 
                     except Exception as e:
 
+                        conexao.rollback()
+
                         st.error(
-                            f"Erro ao atualizar: {e}"
+                            f"Erro ao atualizar lançamento: {e}"
                         )
 
                     finally:
@@ -1966,127 +1693,113 @@ else:
                         cursor.close()
                         conexao.close()
 
-            with st.expander("Excluir lançamento"):
+            # -----------------------------------------------------------------
+            # EXCLUIR LANÇAMENTO
+            # -----------------------------------------------------------------
 
-                confirmar = st.checkbox(
-                    "Confirmo que desejo excluir este lançamento.",
-                    key="confirmar_exclusao"
-                )
+            if sub_del:
 
-                if st.button(
-                    "Excluir selecionado",
-                    type="secondary",
-                    disabled=not confirmar
-                ):
+                conexao = obter_conexao()
+                cursor = conexao.cursor()
 
-                    conexao = obter_conexao()
-                    cursor = conexao.cursor()
+                try:
 
-                    try:
+                    cursor.execute("""
+                        DELETE FROM Transacoes
+                        WHERE id = %s
+                        AND usuario_id = %s
+                    """, (
+                        int(selecionado),
+                        st.session_state.usuario_id
+                    ))
 
-                        cursor.execute(
-                            """
-                            DELETE FROM Transacoes
-                            WHERE id = %s
-                              AND usuario_id = %s
-                            """,
-                            (
-                                int(selecionado),
-                                st.session_state.usuario_id
-                            )
-                        )
+                    conexao.commit()
 
-                        conexao.commit()
+                    st.toast(
+                        "🗑️ Lançamento excluído!",
+                        icon="✅"
+                    )
 
-                        st.success(
-                            "Lançamento excluído."
-                        )
+                    st.rerun()
 
-                        st.rerun()
+                except Exception as e:
 
-                    except Exception as e:
+                    conexao.rollback()
 
-                        st.error(
-                            f"Erro ao excluir: {e}"
-                        )
+                    st.error(
+                        f"Erro ao excluir lançamento: {e}"
+                    )
 
-                    finally:
+                finally:
 
-                        cursor.close()
-                        conexao.close()
+                    cursor.close()
+                    conexao.close()
 
         else:
 
             st.info(
-                "Não há lançamentos neste período. "
-                "Altere o período ou cadastre uma movimentação."
+                "Nenhum lançamento encontrado para o período selecionado."
             )
 
     # =========================================================================
-    # TELA: METAS
+    # TELA: METAS FINANCEIRAS
     # =========================================================================
 
     elif menu == "Metas":
 
-        st.title("Metas financeiras")
-
-        st.caption(
-            "Defina o valor que deseja alcançar."
-        )
+        st.title("🎯 Metas Financeiras")
 
         nova_meta = st.number_input(
-            "Valor da meta (R$)",
+            "Definir novo valor para a Meta (R$)",
             min_value=1.0,
             value=float(st.session_state.meta_mes),
-            step=100.0
+            step=50.0
         )
 
         if st.button(
-            "Salvar meta",
+            "💾 Atualizar Meta",
             type="primary"
         ):
 
             st.session_state.meta_mes = float(nova_meta)
 
-            st.success(
-                "Meta atualizada nesta sessão."
+            st.toast(
+                "🎯 Meta atualizada com sucesso!",
+                icon="✅"
             )
 
             st.rerun()
 
         st.metric(
-            "Meta atual",
+            "Meta Atual do Mês",
             moeda(st.session_state.meta_mes)
         )
 
-        st.progress(
-            progresso_meta / 100
-        )
+        st.progress(progresso_meta / 100)
+
+        if saldo_liquido < 0:
+
+            st.markdown(
+                f"""
+                <p>
+                    🚨 Saldo devedor de {moeda(saldo_liquido)}.
+                    Reorganize os gastos para cumprir a meta.
+                </p>
+                """,
+                unsafe_allow_html=True
+            )
 
     # =========================================================================
-    # TELA: GRÁFICOS
+    # TELA: GRÁFICOS E RELATÓRIOS
     # =========================================================================
 
     elif menu == "Gráficos":
 
-        st.title("Relatórios e gráficos")
-
-        st.caption(
-            "Análise das movimentações do período selecionado."
-        )
+        st.title("📊 Análise e Gráficos Financeiros")
 
         if not df_calculo.empty:
 
             graf = df_calculo.copy()
-
-            graf["Data_dt"] = pd.to_datetime(
-                graf["Data_dt"],
-                errors="coerce"
-            )
-
-            graf = graf.dropna(
-                subset=["Data_dt"]
-            )
 
             graf["Mês"] = (
                 graf["Data_dt"].dt.strftime("%m/%Y")
@@ -2106,18 +1819,17 @@ else:
                 color="Tipo",
                 barmode="group",
                 color_discrete_map={
-                    "Receita": "#43C6A6",
-                    "Despesa": "#7C4DFF"
+                    "RECEITA": "#10B981",
+                    "DESPESA": "#EF4444",
+                    "Receita": "#10B981",
+                    "Despesa": "#EF4444"
                 }
             )
 
             fig.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font_color="#E8E7F5",
-                yaxis=dict(
-                    gridcolor="#30314D"
-                )
+                font_color="#E4E1F5"
             )
 
             st.plotly_chart(
@@ -2125,142 +1837,152 @@ else:
                 use_container_width=True
             )
 
+            # EXPORTAÇÃO DOS LANÇAMENTOS EM CSV
+
             csv = (
-                df_calculo.drop(
-                    columns=["Data_dt"],
-                    errors="ignore"
-                )
+                df_calculo
                 .to_csv(index=False)
                 .encode("utf-8-sig")
             )
 
             st.download_button(
-                "Baixar movimentações em CSV",
+                "📥 Baixar Movimentações em CSV",
                 csv,
                 file_name="famt_control_movimentacoes.csv",
-                mime="text/csv"
+                mime="text/csv",
+                type="primary"
             )
 
         else:
 
             st.info(
-                "Não existem dados suficientes para gerar gráficos."
+                "Não existem lançamentos suficientes para gerar relatórios."
             )
 
     # =========================================================================
-    # TELA: NOTIFICAÇÕES
+    # TELA: CENTRAL DE NOTIFICAÇÕES (ALERTAS REQ-BUS-01)
     # =========================================================================
 
     elif menu == "Notificações":
 
-        st.title("Notificações")
+        st.title("🔔 Central de Notificações")
 
         if saldo_liquido < 0:
 
-            st.error(
-                f"Seu saldo no período está negativo: "
-                f"{moeda(saldo_liquido)}."
+            st.markdown(
+                f"""
+                <div>
+                    <h3>🚨 Saldo Devedor (REQ-BUS-01)</h3>
+
+                    <p>
+                        Seu saldo atual está
+                        <b>NEGATIVO em {moeda(saldo_liquido)}</b>.
+
+                        As despesas acumuladas
+                        ({moeda(total_despesas)})
+                        ultrapassaram os ganhos do período
+                        ({moeda(total_receitas)}).
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
 
         elif total_receitas > 0:
 
             st.success(
-                "Seu saldo está positivo neste período."
+                f"🟢 **Saldo Estável:** Você mantém um saldo "
+                f"positivo de **{moeda(saldo_liquido)}**."
             )
 
         else:
 
             st.info(
-                "Cadastre movimentações para receber notificações financeiras."
-            )
-
-        if historico_filtrado:
-
-            st.subheader(
-                "Movimentação mais recente"
-            )
-
-            st.write(
-                historico_filtrado[0][4],
-                "—",
-                moeda(historico_filtrado[0][2])
+                "ℹ️ Cadastre movimentações para receber alertas automáticos."
             )
 
     # =========================================================================
-    # TELA: ALERTAS E DICAS
+    # TELA: ALERTAS E DICAS DE EDUCAÇÃO FINANCEIRA
     # =========================================================================
 
     elif menu == "Alertas e Dicas":
 
-        st.title("Alertas e dicas")
+        st.title(
+            "💡 Dicas de Educação Financeira (Squad FAMT)"
+        )
 
         if saldo_liquido < 0:
 
-            st.warning(
-                "Suas despesas superaram suas receitas. "
-                "Revise gastos não essenciais."
+            st.error(
+                f"🚨 **Alerta de Saldo Negativo:** "
+                f"Você está com déficit de "
+                f"**{moeda(abs(saldo_liquido))}**. "
+                f"Priorize o corte de custos supérfluos."
             )
 
-        elif total_receitas > 0:
-
-            st.success(
-                "Você está com saldo positivo. "
-                "Continue acompanhando seus gastos."
-            )
-
-        else:
-
-            st.info(
-                "Comece registrando suas receitas e despesas."
-            )
-
-        if total_despesas > 0 and total_receitas > 0:
-
-            percentual = (
-                total_despesas / total_receitas
-            ) * 100
-
-            st.metric(
-                "Despesas em relação às receitas",
-                f"{percentual:.1f}%"
-            )
-
-            if percentual > 80:
-
-                st.warning(
-                    "Mais de 80% das receitas já estão "
-                    "comprometidas com despesas."
-                )
+        st.info(
+            "💡 **Regra 50/30/20:** Reserve 50% dos seus ganhos "
+            "para despesas essenciais, 30% para desejos pessoais "
+            "e 20% para a sua reserva de emergência."
+        )
 
     # =========================================================================
-    # TELA: CONFIGURAÇÕES
+    # TELA: CONFIGURAÇÕES DA CONTA E BANCO
     # =========================================================================
 
     elif menu == "Configurações":
 
-        st.title("Configurações")
+        st.title("⚙️ Configurações da Conta")
 
         st.write(
-            "Conta conectada:",
-            st.session_state.email_logado
+            f"**E-mail logado:** "
+            f"{st.session_state.email_logado}"
         )
 
         st.write(
-            "Banco de dados: MySQL"
+            "**Banco de dados ativo:** MySQL Server"
         )
 
-        st.caption(
-            "Para alterar os dados de conexão, ajuste o arquivo "
-            ".streamlit/secrets.toml ou as variáveis de ambiente."
+        st.markdown(
+            "<br />",
+            unsafe_allow_html=True
         )
 
         if st.button(
-            "Sair da conta",
+            "🗑️ Resetar Histórico de Transações",
             type="secondary"
         ):
 
-            st.session_state.usuario_id = None
-            st.session_state.email_logado = None
-            st.session_state.primeiro_acesso = 0
+            conexao = obter_conexao()
+            cursor = conexao.cursor()
 
-            st.rerun()
+            try:
+
+                cursor.execute("""
+                    DELETE FROM Transacoes
+                    WHERE usuario_id = %s;
+                """, (
+                    st.session_state.usuario_id,
+                ))
+
+                conexao.commit()
+
+                st.toast(
+                    "💥 Histórico resetado com sucesso!",
+                    icon="🗑️"
+                )
+
+                st.rerun()
+
+            except Exception as e:
+
+                conexao.rollback()
+
+                st.error(
+                    f"Erro ao resetar histórico: {e}"
+                )
+
+            finally:
+
+                cursor.close()
+                conexao.close()
