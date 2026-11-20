@@ -1441,21 +1441,6 @@ else:
                     "Outros"
                 ]
             )
-
-            data_lancamento = st.date_input(
-                "Data",
-                value=date.today(),
-                format="DD/MM/YYYY"
-            )
-
-            hora_lancamento = st.time_input(
-                "Horário",
-                value=datetime.now().time().replace(
-                    second=0,
-                    microsecond=0
-                )
-            )
-
             salvar = st.form_submit_button(
                 "💾 Salvar Movimentação",
                 type="primary",
@@ -1477,10 +1462,6 @@ else:
 
                 try:
 
-                    data_hora = datetime.combine(
-                        data_lancamento,
-                        hora_lancamento
-                    )
 
                     tipo_sanitizado = tipo.strip().upper()
 
@@ -1498,7 +1479,6 @@ else:
                         st.session_state.usuario_id,
                         valor,
                         tipo_sanitizado,
-                        data_hora,
                         descricao.strip(),
                         categoria
                     ))
@@ -1550,7 +1530,6 @@ else:
                     "Valor",
                     "Categoria",
                     "Descrição",
-                    "Data"
                 ]
             )
 
