@@ -29,12 +29,12 @@ st.set_page_config(
 )
 
 # =============================================================================
-# LOGO E CONEXÃO COM O BANCO DE DADOS (MYSQL / FALLBACK SQLITE V2)
+# LOGO E CONFIGURAÇÃO DA CONEXÃO MYSQL (EXCLUSIVA)
 # =============================================================================
 LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
 
 def logo_html(css_class="system-logo"):
-    """Retorna a logo em base64 para renderização dentro de HTML no Streamlit."""
+    """Retorna a logo em base64 para funcionar dentro do HTML do Streamlit."""
     if not LOGO_PATH.exists():
         return ""
     data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
@@ -42,22 +42,23 @@ def logo_html(css_class="system-logo"):
     return f'<img src="data:image/png;base64,{data}" class="{classe}">'
 
 def obter_conexao():
-    """Conecta ao MySQL (Aiven/Local). Em caso de falha, aciona o fallback para SQLite v2."""
-    if hasattr(st, "secrets") and "mysql" in st.secrets:
-        try:
+    """Abre conexão MySQL usando secrets.toml ou variáveis de ambiente."""
+    try:
+        cfg = {}
+        if hasattr(st, "secrets") and "mysql" in st.secrets:
             cfg = dict(st.secrets["mysql"])
-            return mysql.connector.connect(
-                host=cfg.get("host", os.getenv("MYSQL_HOST", "localhost")),
-                user=cfg.get("user", os.getenv("MYSQL_USER", "root")),
-                password=cfg.get("password", os.getenv("MYSQL_PASSWORD", "root")),
-                database=cfg.get("database", os.getenv("MYSQL_DATABASE", "famt_control")),
-                port=int(cfg.get("port", os.getenv("MYSQL_PORT", "3306"))),
-                connection_timeout=5
-            )
-        except Exception:
-            pass
-    # Plano de Contingência Local: SQLite v2
-    return sqlite3.connect("famt_control.db", check_same_thread=False)
+        return mysql.connector.connect(
+            host=cfg.get("host", os.getenv("MYSQL_HOST", "localhost")),
+            user=cfg.get("user", os.getenv("MYSQL_USER", "root")),
+            password=cfg.get("password", os.getenv("MYSQL_PASSWORD", "root")),
+            database=cfg.get("database", os.getenv("MYSQL_DATABASE", "famt_control")),
+            port=int(cfg.get("port", os.getenv("MYSQL_PORT", "3306"))),
+            connection_timeout=8
+        )
+    except Exception as e:
+        st.error(f"Não foi possível conectar ao MySQL: {e}")
+        st.info("Confira se o serviço do MySQL está ativo e se o banco de dados existe e as credenciais no secrets.toml estão corretas.")
+        st.stop()
 
 # =============================================================================
 # MÓDULO DE SEGURANÇA, CRIPTOGRAFIA E VALIDAÇÕES (LGPD)
@@ -67,7 +68,7 @@ def _hash_senha(senha: str) -> str:
     return hashlib.sha256(senha.encode("utf-8")).hexdigest()
 
 def validar_complexidade_senha(senha: str) -> tuple[bool, str]:
-    """Valida os requisitos mínimos de segurança para senha LGPD."""
+    """Valida os requisitos mínimos de segurança de senha (LGPD)."""
     if len(senha) < 6:
         return False, "A senha deve conter no mínimo 6 caracteres."
     if not re.search(r"[A-Z]", senha):
@@ -103,10 +104,10 @@ def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> 
         if not hasattr(st, "secrets") or "email" not in st.secrets:
             return False
         cfg = st.secrets["email"]
-        servidor = cfg.get("servidor", "smtp.gmail.com")
-        porta = int(cfg.get("porta", 587))
-        usuario = cfg.get("usuario")
-        senha = cfg.get("senha")
+        servidor = cfg.get("servidor", cfg.get("smtp_server", "smtp.gmail.com"))
+        porta = int(cfg.get("porta", cfg.get("smtp_port", 587)))
+        usuario = cfg.get("usuario", cfg.get("sender_email"))
+        senha = cfg.get("senha", cfg.get("sender_password"))
         if not usuario or not senha:
             return False
         
@@ -136,44 +137,57 @@ def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> 
         return False
 
 # =============================================================================
-# INICIALIZAÇÃO E ESTRUTURA DO BANCO DE DADOS
+# INICIALIZAÇÃO DO BANCO DE DADOS MYSQL
 # =============================================================================
 def inicializar_banco():
-    """Cria as tabelas Usuarios e Transacoes se não existirem."""
+    """Cria as tabelas do MySQL caso ainda não existam."""
     try:
         conexao = obter_conexao()
         cursor = conexao.cursor()
-        is_sqlite = isinstance(conexao, sqlite3.Connection)
-        pk_type = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "INT AUTO_INCREMENT PRIMARY KEY"
         
-        cursor.execute(f"""
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS Usuarios (
-                id {pk_type},
+                id INT AUTO_INCREMENT PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 senha_hash VARCHAR(255) NOT NULL,
                 primeiro_acesso INT DEFAULT 1 CHECK (primeiro_acesso IN (0, 1))
-            );
+            ) ENGINE=InnoDB;
         """)
         
-        cursor.execute(f"""
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS Transacoes (
-                id {pk_type},
+                id INT AUTO_INCREMENT PRIMARY KEY,
                 usuario_id INT NOT NULL,
                 valor DECIMAL(10,2) NOT NULL CHECK (valor > 0),
                 tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('Receita', 'Despesa', 'RECEITA', 'DESPESA')),
                 data DATETIME NOT NULL,
                 descricao VARCHAR(255) NOT NULL,
                 categoria VARCHAR(100) NOT NULL,
-                FOREIGN KEY (usuario_id) REFERENCES Usuarios(id) ON DELETE CASCADE
-            );
+                FOREIGN KEY (usuario_id) REFERENCES Usuarios(id) ON DELETE CASCADE,
+                INDEX idx_transacoes_data (data),
+                INDEX idx_transacoes_usuario_id (usuario_id)
+            ) ENGINE=InnoDB;
         """)
         conexao.commit()
         cursor.close()
         conexao.close()
     except Exception as e:
-        st.error(f"Erro ao inicializar o banco de dados: {e}")
+        st.error(f"Erro ao inicializar o banco de dados MySQL: {e}")
 
 inicializar_banco()
+
+# =============================================================================
+# ESTILIZAÇÃO VISUAL PURPLE DARK MODE
+# =============================================================================
+CUSTOM_CSS = """
+<style>
+    .stApp {
+        background-color: #0E1117;
+        color: #E8E7F5;
+    }
+</style>
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =============================================================================
 # GERENCIAMENTO DE SESSÃO
@@ -198,7 +212,7 @@ if st.session_state.usuario_id is None:
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v39"):
+            with st.form(key="form_login_v40"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -209,8 +223,7 @@ if st.session_state.usuario_id is None:
                     else:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
-                        ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
-                        cursor.execute(f"SELECT id, senha_hash, primeiro_acesso FROM Usuarios WHERE email = {ph}", (email,))
+                        cursor.execute("SELECT id, senha_hash, primeiro_acesso FROM Usuarios WHERE email = %s", (email,))
                         usuario = cursor.fetchone()
                         conexao.close()
                         
@@ -229,7 +242,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v39"):
+            with st.form(key="form_cad_v40"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 
@@ -241,9 +254,8 @@ if st.session_state.usuario_id is None:
                         senha_hash = _hash_senha(senha_prov)
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
-                        ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
                         try:
-                            cursor.execute(f"INSERT INTO Usuarios (email, senha_hash, primeiro_acesso) VALUES ({ph}, {ph}, 1)", (novo_email, senha_hash))
+                            cursor.execute("INSERT INTO Usuarios (email, senha_hash, primeiro_acesso) VALUES (%s, %s, 1)", (novo_email, senha_hash))
                             conexao.commit()
                             email_enviado = enviar_senha_provisoria_email(novo_email, senha_prov)
                             st.toast("Conta criada com sucesso!", icon="✅")
@@ -252,14 +264,14 @@ if st.session_state.usuario_id is None:
                             else:
                                 st.warning("A conta foi criada, mas o e-mail não pôde ser enviado. Use a senha provisória abaixo:")
                                 st.code(senha_prov)
-                        except Exception:
+                        except (IntegrityError, Exception):
                             st.error("❌ Este e-mail já está cadastrado no banco de dados.")
                         finally:
                             conexao.close()
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v39"):
+            with st.form(key="form_rec_v40"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 
@@ -269,13 +281,12 @@ if st.session_state.usuario_id is None:
                     else:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
-                        ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
-                        cursor.execute(f"SELECT id FROM Usuarios WHERE email = {ph}", (rec_email,))
+                        cursor.execute("SELECT id FROM Usuarios WHERE email = %s", (rec_email,))
                         usr = cursor.fetchone()
                         if usr:
                             nova_prov = gerar_senha_provisoria(8)
                             novo_hash = _hash_senha(nova_prov)
-                            cursor.execute(f"UPDATE Usuarios SET senha_hash = {ph}, primeiro_acesso = 1 WHERE email = {ph}", (novo_hash, rec_email))
+                            cursor.execute("UPDATE Usuarios SET senha_hash = %s, primeiro_acesso = 1 WHERE email = %s", (novo_hash, rec_email))
                             conexao.commit()
                             conexao.close()
                             email_enviado = enviar_senha_provisoria_email(rec_email, nova_prov)
@@ -298,7 +309,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
         
-        with st.form(key="form_pa_lgpd_v39"):
+        with st.form(key="form_pa_lgpd_v40"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -313,8 +324,7 @@ elif st.session_state.primeiro_acesso == 1:
                     novo_hash = _hash_senha(nova_senha)
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
-                    ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
-                    cursor.execute(f"UPDATE Usuarios SET senha_hash = {ph}, primeiro_acesso = 0 WHERE id = {ph}", (novo_hash, st.session_state.usuario_id))
+                    cursor.execute("UPDATE Usuarios SET senha_hash = %s, primeiro_acesso = 0 WHERE id = %s", (novo_hash, st.session_state.usuario_id))
                     conexao.commit()
                     conexao.close()
                     st.session_state.primeiro_acesso = 0
@@ -328,6 +338,10 @@ else:
     if "menu" not in st.session_state:
         st.session_state.menu = "Painel"
         
+    def navegar_para(destino):
+        st.session_state.menu = destino
+        
+    # Sidebar lateral
     with st.sidebar:
         st.markdown("<h2>FAMT CONTROL</h2>", unsafe_allow_html=True)
         opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Metas", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
@@ -356,11 +370,15 @@ else:
     def moeda(val):
         return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-    # Consulta dos Lançamentos no Banco
+    # Consulta dos Lançamentos no MySQL
     conexao = obter_conexao()
     cursor = conexao.cursor()
-    ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
-    cursor.execute(f"SELECT id, tipo, valor, categoria, descricao, data FROM Transacoes WHERE usuario_id = {ph} ORDER BY data DESC", (st.session_state.usuario_id,))
+    cursor.execute("""
+        SELECT id, tipo, valor, categoria, descricao, data 
+        FROM Transacoes 
+        WHERE usuario_id = %s 
+        ORDER BY data DESC
+    """, (st.session_state.usuario_id,))
     historico = cursor.fetchall()
     cursor.close()
     conexao.close()
@@ -444,8 +462,8 @@ else:
     # =========================================================================
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
-        st.caption("Cadastre uma movimentação. A data e o horário são registrados automaticamente.")
-        with st.form("form_lancamento_v39", clear_on_submit=True):
+        st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
+        with st.form("form_lancamento_v40", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -458,14 +476,20 @@ else:
                 else:
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
-                    ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
                     try:
                         data_hora = datetime.now()
                         tipo_sanitizado = tipo.strip().upper()
-                        cursor.execute(f"""
+                        cursor.execute("""
                             INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria)
-                            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-                        """, (st.session_state.usuario_id, valor, tipo_sanitizado, data_hora, descricao.strip(), categoria))
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (
+                            st.session_state.usuario_id, 
+                            valor, 
+                            tipo_sanitizado, 
+                            data_hora, 
+                            descricao.strip(), 
+                            categoria
+                        ))
                         conexao.commit()
                         st.toast(f"🎉 Lançamento de R$ {valor:.2f} salvo com sucesso!", icon="💰")
                         st.session_state.menu = "Painel"
@@ -481,15 +505,14 @@ else:
     # =========================================================================
     elif menu == "Extrato e Edição":
         st.title("📄 Extrato e Edição de Lançamentos")
-        st.caption("Consulte, edite ou exclua suas movimentações salvas no banco de dados.")
+        st.caption("Consulte, edite ou exclua suas movimentações salvas no banco MySQL.")
         
         conexao = obter_conexao()
         cursor = conexao.cursor()
-        ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT id, tipo, valor, categoria, descricao, data 
             FROM Transacoes 
-            WHERE usuario_id = {ph} 
+            WHERE usuario_id = %s 
             ORDER BY data DESC;
         """, (st.session_state.usuario_id,))
         historico_extrato = cursor.fetchall()
@@ -517,7 +540,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v39"):
+            with st.form("form_editar_v40"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -531,12 +554,11 @@ else:
                     else:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
-                        ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
                         try:
-                            cursor.execute(f"""
+                            cursor.execute("""
                                 UPDATE Transacoes 
-                                SET tipo = {ph}, valor = {ph}, categoria = {ph}, descricao = {ph} 
-                                WHERE id = {ph} AND usuario_id = {ph}
+                                SET tipo = %s, valor = %s, categoria = %s, descricao = %s 
+                                WHERE id = %s AND usuario_id = %s
                             """, (novo_tipo.strip().upper(), novo_valor, nova_cat.strip(), nova_desc.strip(), int(selecionado), st.session_state.usuario_id))
                             conexao.commit()
                             st.toast("🎉 Lançamento atualizado!", icon="✅")
@@ -548,13 +570,14 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v39")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v40")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
-                    ph = "?" if isinstance(conexao, sqlite3.Connection) else "%s"
                     try:
-                        cursor.execute(f"DELETE FROM Transacoes WHERE id = {ph} AND usuario_id = {ph}", (int(selecionado), st.session_state.usuario_id))
+                        cursor.execute("""
+                            DELETE FROM Transacoes WHERE id = %s AND usuario_id = %s
+                        """, (int(selecionado), st.session_state.usuario_id))
                         conexao.commit()
                         st.toast("🗑️ Lançamento excluído com sucesso!", icon="✅")
                         st.rerun()
@@ -616,4 +639,4 @@ else:
     elif menu == "Configurações":
         st.title("⚙️ Configurações da Conta")
         st.write(f"**Conta:** {st.session_state.email_logado}")
-        st.write("**Banco:** MySQL (Aiven) / SQLite (Fallback local)")
+        st.write("**Banco de Dados:** MySQL (Aiven / Local)")
