@@ -1395,117 +1395,109 @@ else:
             # =========================================================================
     # TELA: LANÇAR
     # =========================================================================
-
     elif menu == "Lançar":
-
         st.title("＋ Novo Lançamento")
+    st.caption(
+        "Cadastre receitas ou despesas com atualização automática do saldo."
+    )
 
-        st.caption(
-            "Cadastre receitas ou despesas com atualização automática do saldo."
+    with st.form("form_lancamento_v37", clear_on_submit=True):
+        tipo = st.selectbox(
+            "Tipo de Movimentação",
+            ["Despesa", "Receita"]
         )
 
-        with st.form(
-            "form_lancamento_v33",
-            clear_on_submit=True
-        ):
+        valor = st.number_input(
+            "Valor (R$)",
+            min_value=0.01,
+            value=50.00,
+            step=10.00
+        )
 
-            tipo = st.selectbox(
-                "Tipo de Movimentação",
-                ["Despesa", "Receita"]
+        descricao = st.text_input(
+            "Descrição detalhada",
+            placeholder="Ex: Mensalidade, Almoço, Estágio"
+        )
+
+        categoria = st.selectbox(
+            "Categoria",
+            [
+                "Alimentação",
+                "Moradia",
+                "Transporte",
+                "Educação",
+                "Saúde",
+                "Lazer",
+                "Salário",
+                "Freelance",
+                "Contas",
+                "Outros"
+            ]
+        )
+
+        salvar = st.form_submit_button(
+            "💾 Salvar Movimentação",
+            type="primary",
+            use_container_width=True
+        )
+
+    if salvar:
+        if not descricao.strip():
+            st.error(
+                "❌ Por favor, informe uma descrição para o lançamento."
             )
+        else:
+            conexao = obter_conexao()
+            cursor = conexao.cursor()
 
-            valor = st.number_input(
-                "Valor (R$)",
-                min_value=0.01,
-                value=50.00,
-                step=10.00
-            )
+            try:
+                # Define a data e o horário atuais automaticamente
+                data_hora = datetime.now()
 
-            descricao = st.text_input(
-                "Descrição detalhada",
-                placeholder="Ex: Mensalidade, Almoço, Estágio"
-            )
+                tipo_sanitizado = tipo.strip().upper()
 
-            categoria = st.selectbox(
-                "Categoria",
-                [
-                    "Alimentação",
-                    "Moradia",
-                    "Transporte",
-                    "Educação",
-                    "Saúde",
-                    "Lazer",
-                    "Salário",
-                    "Freelance",
-                    "Contas",
-                    "Outros"
-                ]
-            )
-            salvar = st.form_submit_button(
-                "💾 Salvar Movimentação",
-                type="primary",
-                use_container_width=True
-            )
-
-        if salvar:
-
-            if not descricao.strip():
-
-                st.error(
-                    "❌ Por favor, informe uma descrição para o lançamento."
-                )
-
-            else:
-
-                conexao = obter_conexao()
-                cursor = conexao.cursor()
-
-                try:
-
-
-                    tipo_sanitizado = tipo.strip().upper()
-
-                    cursor.execute("""
-                        INSERT INTO Transacoes (
-                            usuario_id,
-                            valor,
-                            tipo,
-                            data,
-                            descricao,
-                            categoria
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                    """, (
+                # SQL exige exatamente 6 colunas e 6 marcadores (%s)
+                cursor.execute(
+                    """
+                    INSERT INTO Transacoes (
+                        usuario_id,
+                        valor,
+                        tipo,
+                        data,
+                        descricao,
+                        categoria
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
                         st.session_state.usuario_id,
                         valor,
                         tipo_sanitizado,
+                        data_hora,
                         descricao.strip(),
                         categoria
-                    ))
-
-                    conexao.commit()
-
-                    st.toast(
-                        f"🎉 Lançamento de R$ {valor:.2f} salvo com sucesso!",
-                        icon="💰"
                     )
+                )
 
-                    st.session_state.menu = "Painel"
+                conexao.commit()
 
-                    st.rerun()
+                st.toast(
+                    f"🎉 Lançamento de R$ {valor:.2f} salvo com sucesso!",
+                    icon="💰"
+                )
 
-                except Exception as e:
+                st.session_state.menu = "Painel"
+                st.rerun()
 
-                    conexao.rollback()
+            except Exception as e:
+                st.error(
+                    f"Não foi possível salvar o lançamento: {e}"
+                )
 
-                    st.error(
-                        f"Não foi possível salvar o lançamento: {e}"
-                    )
+            finally:
+                cursor.close()
+                conexao.close()
 
-                finally:
-
-                    cursor.close()
-                    conexao.close()
 
     # =========================================================================
     # TELA: EXTRATO E EDIÇÃO (CRUD DIRETO NO BANCO SQL)
