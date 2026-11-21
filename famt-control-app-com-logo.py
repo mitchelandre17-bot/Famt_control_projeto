@@ -57,7 +57,7 @@ def obter_conexao():
         )
     except Exception as e:
         st.error(f"Não foi possível conectar ao MySQL: {e}")
-        st.info("Confira se o serviço do MySQL está ativo e se o banco de dados existe e as credenciais no secrets.toml estão corretas.")
+        st.info("Confira se o serviço do MySQL está ativo, se o banco de dados existe e se as credenciais no secrets.toml estão corretas.")
         st.stop()
 
 # =============================================================================
@@ -396,7 +396,8 @@ else:
         total_receitas = float(df_calculo.loc[df_calculo["Tipo_Norm"] == "RECEITA", "Valor"].sum())
         total_despesas = float(df_calculo.loc[df_calculo["Tipo_Norm"] == "DESPESA", "Valor"].sum())
     else:
-        df_calculo = pd.DataFrame(columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data"])
+        # Garante a presença das colunas auxiliares mesmo quando não há dados no banco
+        df_calculo = pd.DataFrame(columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data", "Tipo_Norm", "Data_dt"])
         total_receitas = 0.0
         total_despesas = 0.0
         
@@ -440,22 +441,28 @@ else:
                 st.info("Nenhuma movimentação registrada no período.")
                 
         with col_g2:
-            st.subheader("Despesas por Categoria")
+            st.markdown("### 🍩 Gastos por Categoria")
+        if not df_calculo.empty and "Tipo_Norm" in df_calculo.columns:
             desp = df_calculo[df_calculo["Tipo_Norm"] == "DESPESA"]
             if not desp.empty:
                 cats = desp.groupby("Categoria", as_index=False)["Valor"].sum()
-                fig_cat = px.pie(cats, names="Categoria", values="Valor", hole=0.6, color_discrete_sequence=["#7C4DFF", "#43C6A6", "#3B9EF8", "#F4A340", "#E84DA8"])
-                fig_cat.update_layout(height=320, paper_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
+                fig_cat = px.pie(
+                    cats, 
+                    names="Categoria", 
+                    values="Valor", 
+                    hole=0.6, 
+                    color_discrete_sequence=["#7C4DFF", "#43C6A6", "#3B9EF8", "#F4A340", "#E84DA8"]
+                )
+                fig_cat.update_layout(
+                    height=320, 
+                    paper_bgcolor="rgba(0,0,0,0)", 
+                    font_color="#E8E7F5"
+                )
                 st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.info("Nenhuma despesa cadastrada no período.")
-                
-        st.divider()
-        st.subheader("🎯 Progresso da Meta")
-        st.progress(progresso_meta / 100)
-        st.caption(f"{progresso_meta}% — Saldo de {moeda(saldo_liquido)} em relação à meta de {moeda(meta_mes)}.")
-        if saldo_liquido < 0:
-            st.error("🚨 Alerta Contábil (REQ-BUS-01): Suas despesas superaram as receitas! Recomenda-se conter gastos.")
+        else:
+            st.info("Nenhuma despesa cadastrada no período.")
             
     # =========================================================================
     # TELA: LANÇAR
