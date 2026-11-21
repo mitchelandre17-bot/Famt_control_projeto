@@ -57,7 +57,7 @@ def obter_conexao():
         )
     except Exception as e:
         st.error(f"Não foi possível conectar ao MySQL: {e}")
-        st.info("Confira se o serviço do MySQL está ativo, se o banco de dados existe e se as credenciais no secrets.toml estão corretas.")
+        st.info("Confira se o MySQL está iniciado, se o banco 'famt_control' existe e se usuário/senha estão corretos.")
         st.stop()
 
 # =============================================================================
@@ -144,7 +144,6 @@ def inicializar_banco():
     try:
         conexao = obter_conexao()
         cursor = conexao.cursor()
-        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Usuarios (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -153,7 +152,6 @@ def inicializar_banco():
                 primeiro_acesso INT DEFAULT 1 CHECK (primeiro_acesso IN (0, 1))
             ) ENGINE=InnoDB;
         """)
-        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Transacoes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -163,9 +161,7 @@ def inicializar_banco():
                 data DATETIME NOT NULL,
                 descricao VARCHAR(255) NOT NULL,
                 categoria VARCHAR(100) NOT NULL,
-                FOREIGN KEY (usuario_id) REFERENCES Usuarios(id) ON DELETE CASCADE,
-                INDEX idx_transacoes_data (data),
-                INDEX idx_transacoes_usuario_id (usuario_id)
+                FOREIGN KEY (usuario_id) REFERENCES Usuarios(id) ON DELETE CASCADE
             ) ENGINE=InnoDB;
         """)
         conexao.commit()
@@ -177,7 +173,7 @@ def inicializar_banco():
 inicializar_banco()
 
 # =============================================================================
-# ESTILIZAÇÃO VISUAL PURPLE DARK MODE
+# ESTILIZAÇÃO VISUAL PURPLE DARK MODE (COM DESTAQUE VERMELHO EM DESPESAS)
 # =============================================================================
 CUSTOM_CSS = """
 <style>
@@ -207,16 +203,14 @@ if st.session_state.usuario_id is None:
     with col_center:
         st.markdown("<h1>💰 FAMT CONTROL</h1>", unsafe_allow_html=True)
         st.markdown("<p>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
-        
         aba1, aba2, aba3 = st.tabs(["🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"])
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v40"):
+            with st.form(key="form_login_v41"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
-                
                 if btn_login:
                     if not email or not senha:
                         st.error("❌ Por favor, preencha o e-mail e a senha.")
@@ -226,7 +220,6 @@ if st.session_state.usuario_id is None:
                         cursor.execute("SELECT id, senha_hash, primeiro_acesso FROM Usuarios WHERE email = %s", (email,))
                         usuario = cursor.fetchone()
                         conexao.close()
-                        
                         if usuario:
                             u_id, hash_banco, prim_acesso = usuario
                             if _hash_senha(senha) == hash_banco:
@@ -242,10 +235,9 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v40"):
+            with st.form(key="form_cad_v41"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
-                
                 if btn_cad:
                     if not novo_email or "@" not in novo_email:
                         st.error("❌ Por favor, digite um e-mail válido.")
@@ -271,10 +263,9 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v40"):
+            with st.form(key="form_rec_v41"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
-                
                 if btn_rec:
                     if not rec_email or "@" not in rec_email:
                         st.error("❌ Por favor, preencha um e-mail válido.")
@@ -308,12 +299,10 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        
-        with st.form(key="form_pa_lgpd_v40"):
+        with st.form(key="form_pa_lgpd_v41"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
-            
             if btn_pa:
                 valida, msg_erro = validar_complexidade_senha(nova_senha)
                 if not valida:
@@ -356,7 +345,7 @@ else:
             st.session_state.primeiro_acesso = 0
             st.rerun()
             
-    # Período de Análise (Mês Atual)
+    # Período de Análise (Mês Atual) - Corrigido para índice [1]
     agora = datetime.now()
     primeiro_dia_mes = agora.replace(day=1).date()
     ultimo_dia_num = calendar.monthrange(agora.year, agora.month)[1]
@@ -396,81 +385,75 @@ else:
         total_receitas = float(df_calculo.loc[df_calculo["Tipo_Norm"] == "RECEITA", "Valor"].sum())
         total_despesas = float(df_calculo.loc[df_calculo["Tipo_Norm"] == "DESPESA", "Valor"].sum())
     else:
-        # Garante a presença das colunas auxiliares mesmo quando não há dados no banco
         df_calculo = pd.DataFrame(columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data", "Tipo_Norm", "Data_dt"])
         total_receitas = 0.0
         total_despesas = 0.0
         
-    saldo_liquido = total_receitas - total_despesas
-    
     if "meta_mes" not in st.session_state:
         st.session_state.meta_mes = 1000.00
     meta_mes = st.session_state.meta_mes
-    progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
+    
+    # Indicador de Comprometimento de Renda (%) em substituição ao Saldo Líquido
+    comprometimento_renda = (total_despesas / total_receitas * 100) if total_receitas > 0 else (100.0 if total_despesas > 0 else 0.0)
+    progresso_meta = min(100, int(((total_receitas - total_despesas) / meta_mes) * 100)) if (total_receitas - total_despesas) > 0 and meta_mes > 0 else 0
     
     # =========================================================================
     # TELA: PAINEL
     # =========================================================================
     if menu == "Painel":
-        st.title("📊 Visão Geral Financeira")
-        st.caption("Acompanhe suas receitas, despesas e metas em tempo real.")
+        st.title("📊 Painel de Controle Financeiro")
+        st.caption("Visão analítica de receitas, despesas e distribuição por categoria.")
         
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("↗ Receitas", moeda(total_receitas))
-        c2.metric("↘ Despesas", moeda(total_despesas))
-        c3.metric("◎ Saldo Líquido", moeda(saldo_liquido))
-        c4.metric("🎯 Meta Financeira", moeda(meta_mes))
-        st.divider()
+        c1.metric("↗ Total de Receitas", moeda(total_receitas), delta="Entradas", delta_color="normal")
+        c2.metric("↘ Total de Despesas", moeda(total_despesas), delta="Saídas", delta_color="inverse")
+        c3.metric("📊 Comprometimento", f"{comprometimento_renda:.1f}%", delta="da Renda" if comprometimento_renda <= 80 else "Atenção!", delta_color="inverse" if comprometimento_renda > 80 else "normal")
+        c4.metric("🎯 Meta do Mês", moeda(meta_mes), delta=f"{progresso_meta}% Atingido")
+        st.markdown("<br />", unsafe_allow_html=True)
         
-        col_g1, col_g2 = st.columns([1.5, 1])
+        col_g1, col_g2 = st.columns([1.6, 1.4])
         with col_g1:
-            st.subheader("Receitas x Despesas")
+            st.subheader("📈 Comparativo de Receitas x Despesas")
             if not df_calculo.empty:
                 df_c = df_calculo.copy()
                 df_c["Mês"] = df_c["Data_dt"].dt.strftime("%m/%Y")
                 mensal = df_c.pivot_table(index="Mês", columns="Tipo_Norm", values="Valor", aggfunc="sum", fill_value=0).reset_index()
-                for c in ["RECEITA", "DESPESA"]:
-                    if c not in mensal.columns:
-                        mensal[c] = 0.0
+                for col in ["RECEITA", "DESPESA"]:
+                    if col not in mensal.columns:
+                        mensal[col] = 0.0
                 fig = go.Figure()
                 fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["RECEITA"], name="Receitas", marker_color="#43C6A6"))
-                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["DESPESA"], name="Despesas", marker_color="#7C4DFF"))
-                fig.update_layout(barmode="group", height=320, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
+                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["DESPESA"], name="Despesas", marker_color="#FF4D4D"))
+                fig.update_layout(barmode="group", height=340, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5", legend=dict(orientation="h", y=1.12), margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             else:
-                st.info("Nenhuma movimentação registrada no período.")
+                st.info("ℹ️ Nenhuma movimentação registrada no período selecionado.")
                 
         with col_g2:
-            st.markdown("### 🍩 Gastos por Categoria")
-        if not df_calculo.empty and "Tipo_Norm" in df_calculo.columns:
-            desp = df_calculo[df_calculo["Tipo_Norm"] == "DESPESA"]
-            if not desp.empty:
-                cats = desp.groupby("Categoria", as_index=False)["Valor"].sum()
-                fig_cat = px.pie(
-                    cats, 
-                    names="Categoria", 
-                    values="Valor", 
-                    hole=0.6, 
-                    color_discrete_sequence=["#7C4DFF", "#43C6A6", "#3B9EF8", "#F4A340", "#E84DA8"]
-                )
-                fig_cat.update_layout(
-                    height=320, 
-                    paper_bgcolor="rgba(0,0,0,0)", 
-                    font_color="#E8E7F5"
-                )
-                st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
+            st.subheader("🍩 Distribuição de Despesas por Categoria")
+            if not df_calculo.empty and "Tipo_Norm" in df_calculo.columns:
+                desp = df_calculo[df_calculo["Tipo_Norm"] == "DESPESA"]
+                if not desp.empty:
+                    cats = desp.groupby("Categoria", as_index=False)["Valor"].sum().sort_values(by="Valor", ascending=False)
+                    paleta_despesas = ["#FF4D4D", "#E53935", "#FF6B6B", "#D32F2F", "#FF8A80", "#C62828", "#FF5252"]
+                    fig_cat = px.pie(cats, names="Categoria", values="Valor", hole=0.6, color_discrete_sequence=paleta_despesas)
+                    fig_cat.update_layout(height=340, paper_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5", legend=dict(orientation="h", y=-0.15), margin=dict(l=10, r=10, t=10, b=10))
+                    fig_cat.update_traces(textposition="inside", textinfo="percent+label")
+                    st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
+                else:
+                    st.info("ℹ️ Nenhuma despesa cadastrada no período.")
             else:
-                st.info("Nenhuma despesa cadastrada no período.")
-        else:
-            st.info("Nenhuma despesa cadastrada no período.")
-            
+                st.info("ℹ️ Nenhuma despesa cadastrada no período.")
+                
+        st.divider()
+        
     # =========================================================================
     # TELA: LANÇAR
     # =========================================================================
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v40", clear_on_submit=True):
+        with st.form("form_lancamento_v41", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -489,14 +472,7 @@ else:
                         cursor.execute("""
                             INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria)
                             VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (
-                            st.session_state.usuario_id, 
-                            valor, 
-                            tipo_sanitizado, 
-                            data_hora, 
-                            descricao.strip(), 
-                            categoria
-                        ))
+                        """, (st.session_state.usuario_id, valor, tipo_sanitizado, data_hora, descricao.strip(), categoria))
                         conexao.commit()
                         st.toast(f"🎉 Lançamento de R$ {valor:.2f} salvo com sucesso!", icon="💰")
                         st.session_state.menu = "Painel"
@@ -547,7 +523,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v40"):
+            with st.form("form_editar_v41"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -577,7 +553,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v40")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v41")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
@@ -608,12 +584,19 @@ else:
             st.rerun()
             
     # =========================================================================
-    # TELA: GRÁFICOS
+    # TELA: GRÁFICOS (DESPESAS EM VERMELHO)
     # =========================================================================
     elif menu == "Gráficos":
         st.title("📈 Relatórios Visuais")
         if not df_calculo.empty:
-            fig = px.bar(df_calculo, x="Categoria", y="Valor", color="Tipo_Norm", barmode="group")
+            fig = px.bar(
+                df_calculo, 
+                x="Categoria", 
+                y="Valor", 
+                color="Tipo_Norm", 
+                barmode="group", 
+                color_discrete_map={"RECEITA": "#43C6A6", "DESPESA": "#FF4D4D"}
+            )
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -624,8 +607,8 @@ else:
     # =========================================================================
     elif menu == "Notificações":
         st.title("🔔 Central de Notificações")
-        if saldo_liquido < 0:
-            st.error(f"🚨 Atenção: Saldo devedor de {moeda(saldo_liquido)}.")
+        if comprometimento_renda > 80:
+            st.error(f"🚨 Atenção: Comprometimento de renda elevado em {comprometimento_renda:.1f}%.")
         else:
             st.success("Sua conta está em situação regular.")
             
@@ -635,9 +618,8 @@ else:
     elif menu == "Alertas e Dicas":
         st.title("💡 Alertas e Dicas Financeiras")
         if total_despesas > 0 and total_receitas > 0:
-            pct = (total_despesas / total_receitas) * 100
-            st.metric("Comprometimento de Renda", f"{pct:.1f}%")
-            if pct > 80:
+            st.metric("Comprometimento de Renda", f"{comprometimento_renda:.1f}%")
+            if comprometimento_renda > 80:
                 st.warning("⚠️ Mais de 80% das suas receitas estão comprometidas com despesas!")
                 
     # =========================================================================
