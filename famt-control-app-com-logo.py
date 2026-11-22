@@ -25,7 +25,7 @@ LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
 
 st.set_page_config(
     page_title="FAMT CONTROL - Dashboard",
-    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else "💰",
+    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else "💳",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -33,13 +33,14 @@ st.set_page_config(
 # =============================================================================
 # LOGO E CONFIGURAÇÃO DA CONEXÃO MYSQL (EXCLUSIVA)
 # =============================================================================
-def logo_html(css_class="system-logo"):
+def logo_html(css_class="system-logo", max_height="60px"):
     """Retorna a logo em base64 para funcionar dentro do HTML do Streamlit."""
     if not LOGO_PATH.exists():
-        return ""
+        return "<h2>FAMT CONTROL</h2>"
     data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
     classe = html.escape(css_class, quote=True)
-    return f'<img src="data:image/png;base64,{data}" class="{classe}">'
+    max_h = html.escape(max_height, quote=True)
+    return f'<img src="data:image/png;base64,{data}" class="{classe}" style="max-height: {max_h};">'
 
 def obter_conexao():
     """Abre conexão MySQL usando secrets.toml ou variáveis de ambiente."""
@@ -199,7 +200,7 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =============================================================================
-# GERENCIAMENTO DE SESSÃO E PERSISTÊNCIA NO CELULAR (ANTI-DESLOGAMENTO)
+# GERENCIAMENTO DE SESSÃO E PERSISTÊNCIA NO CELULAR
 # =============================================================================
 if 'usuario_id' not in st.session_state:
     st.session_state.usuario_id = None
@@ -230,13 +231,14 @@ if st.session_state.usuario_id is None:
 if st.session_state.usuario_id is None:
     col_left, col_center, col_right = st.columns([1, 2, 1])
     with col_center:
-        st.markdown("<h1>💰 FAMT CONTROL</h1>", unsafe_allow_html=True)
-        st.markdown("<p>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'>{logo_html('login-logo', max_height='90px')}</div>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center;'>FAMT CONTROL</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
         aba1, aba2, aba3 = st.tabs(["🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"])
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v44"):
+            with st.form(key="form_login_v45"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -265,7 +267,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v44"):
+            with st.form(key="form_cad_v45"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
@@ -293,7 +295,7 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v44"):
+            with st.form(key="form_rec_v45"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 if btn_rec:
@@ -329,7 +331,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        with st.form(key="form_pa_lgpd_v44"):
+        with st.form(key="form_pa_lgpd_v45"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -360,12 +362,9 @@ else:
     def navegar_para(destino):
         st.session_state.menu = destino
         
-    # Sidebar lateral com suporte a Logo
+    # Sidebar lateral com renderização da Logo Oficial
     with st.sidebar:
-        if LOGO_PATH.exists():
-            st.markdown(logo_html("sidebar-logo"), unsafe_allow_html=True)
-        else:
-            st.markdown("<h2>FAMT CONTROL</h2>", unsafe_allow_html=True)
+        st.markdown(logo_html("sidebar-logo", max_height="50px"), unsafe_allow_html=True)
         opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Metas", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
         idx_menu = opcoes_menu.index(st.session_state.menu) if st.session_state.menu in opcoes_menu else 0
         menu = st.radio("Navegação", opcoes_menu, index=idx_menu, key="nav_radio")
@@ -379,7 +378,7 @@ else:
             st.query_params.clear()
             st.rerun()
             
-    # Período de Análise (Mês Atual) - Corrigido índice [1]
+    # Período de Análise (Mês Atual) — Índice corrigido para [1]
     agora = datetime.now()
     primeiro_dia_mes = agora.replace(day=1).date()
     ultimo_dia_num = calendar.monthrange(agora.year, agora.month)[1]
@@ -431,7 +430,7 @@ else:
     meta_mes = st.session_state.meta_mes
     progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
     
-    # Extração segura do nome do usuário logado
+    # Extração segura do primeiro nome do e-mail cadastrado
     nome_usuario = st.session_state.email_logado.split('@')[0].capitalize() if st.session_state.email_logado else "Usuário"
     saudacao_tempo = obter_saudacao_horario()
     
@@ -455,7 +454,7 @@ else:
         
         # --- FORMULÁRIO DE LANÇAMENTO RÁPIDO INCORPORADO NO PAINEL ---
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
-            with st.form("form_quick_lancamento_painel_v44", clear_on_submit=True):
+            with st.form("form_quick_lancamento_painel_v45", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 2, 1.5])
                 with col_f1:
                     tipo_p = st.selectbox("Tipo", ["Despesa", "Receita"], key="quick_tipo")
@@ -534,7 +533,7 @@ else:
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v44", clear_on_submit=True):
+        with st.form("form_lancamento_v45", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -604,7 +603,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v44"):
+            with st.form("form_editar_v45"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -634,7 +633,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v44")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v45")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
