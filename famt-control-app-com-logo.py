@@ -21,8 +21,6 @@ import html
 # =============================================================================
 # CONFIGURAÇÃO INICIAL DA PÁGINA STREAMLIT
 # =============================================================================
-LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
-
 st.set_page_config(
     page_title="FAMT CONTROL - Dashboard",
     page_icon="💰",
@@ -31,8 +29,10 @@ st.set_page_config(
 )
 
 # =============================================================================
-# LOGO E CONFIGURAÇÃO DA CONEXÃO MYSQL
+# LOGO E CONFIGURAÇÃO DO BANCO DE DADOS MYSQL
 # =============================================================================
+LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
+
 def logo_html(css_class="system-logo"):
     """Retorna a logo em base64 para funcionar dentro do HTML do Streamlit."""
     if not LOGO_PATH.exists():
@@ -61,14 +61,21 @@ def obter_conexao():
         st.stop()
 
 # =============================================================================
-# MÓDULO DE SEGURANÇA E CRIPTOGRAFIA (LGPD)
+# MÓDULO DE SEGURANÇA, CRIPTOGRAFIA E VALIDAÇÕES (LGPD)
 # =============================================================================
 def _hash_senha(senha: str) -> str:
     """Gera hash SHA-256 para a senha."""
     return hashlib.sha256(senha.encode("utf-8")).hexdigest()
 
 def validar_complexidade_senha(senha: str) -> tuple[bool, str]:
-    """Valida os requisitos mínimos de segurança de senha (LGPD)."""
+    """
+    Valida os requisitos mínimos de segurança de senha (LGPD):
+    - Mínimo de 6 caracteres
+    - Pelo menos 1 letra maiúscula
+    - Pelo menos 1 letra minúscula
+    - Pelo menos 1 número
+    - Pelo menos 1 caractere especial
+    """
     if len(senha) < 6:
         return False, "A senha deve conter no mínimo 6 caracteres."
     if not re.search(r"[A-Z]", senha):
@@ -99,27 +106,27 @@ def gerar_senha_provisoria(tamanho: int = 8) -> str:
     return "".join(senha)
 
 def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> bool:
-    """Envia a senha provisória por e-mail via SMTP."""
+    """Envia a senha provisória por SMTP se as credenciais estiverem configuradas."""
     try:
         if not hasattr(st, "secrets") or "email" not in st.secrets:
             return False
         cfg = st.secrets["email"]
-        servidor = cfg.get("servidor", cfg.get("smtp_server", "smtp.gmail.com"))
-        porta = int(cfg.get("porta", cfg.get("smtp_port", 587)))
-        usuario = cfg.get("usuario", cfg.get("sender_email"))
-        senha = cfg.get("senha", cfg.get("sender_password"))
+        servidor = cfg.get("servidor", "smtp.gmail.com")
+        porta = int(cfg.get("porta", 587))
+        usuario = cfg.get("usuario")
+        senha = cfg.get("senha")
         if not usuario or not senha:
             return False
         mensagem = MIMEMultipart()
         mensagem["From"] = usuario
         mensagem["To"] = email_destino
         mensagem["Subject"] = "Sua senha provisória - FAMT Control"
-        corpo = (
+        corpo_email = (
             "Olá!\n\n"
             f"Sua senha provisória do FAMT Control é: {senha_provisoria}\n\n"
             "Ao entrar, você deverá criar uma nova senha."
         )
-        mensagem.attach(MIMEText(corpo, "plain", "utf-8"))
+        mensagem.attach(MIMEText(corpo_email, "plain", "utf-8"))
         with smtplib.SMTP(servidor, porta, timeout=15) as smtp:
             smtp.starttls()
             smtp.login(usuario, senha)
@@ -218,13 +225,15 @@ if st.session_state.usuario_id is None:
             st.markdown('<div style="text-align: center; font-size: 3rem;">💰</div>', unsafe_allow_html=True)
         st.markdown("<h2 style='text-align: center;'>FAMT <span>CONTROL</span></h2><p style='text-align: center;'>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
         
-        aba1, aba2, aba3 = st.tabs(["🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"])
+        aba1, aba2, aba3 = st.tabs([
+            "🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"
+        ])
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
             with st.form(key="form_login_v24"):
-                email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
-                senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
+                email = st.text_input("E-mail cadastrado", key="login_email_v24", placeholder="seu.email@exemplo.com").strip().lower()
+                senha = st.text_input("Senha de acesso", type="password", key="login_senha_v24", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
                 if btn_login:
                     if not email or not senha:
@@ -252,7 +261,7 @@ if st.session_state.usuario_id is None:
         with aba2:
             st.markdown("### 📝 Criar nova conta")
             with st.form(key="form_cad_v24"):
-                novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
+                novo_email = st.text_input("E-mail para cadastro", key="cad_email_v24", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
                     if not novo_email or "@" not in novo_email:
@@ -270,7 +279,7 @@ if st.session_state.usuario_id is None:
                             if email_enviado:
                                 st.success(f"Conta criada! A senha provisória foi enviada para {novo_email}.")
                             else:
-                                st.warning("A conta foi criada, mas o envio de e-mail não está configurado. Use a senha provisória exibida abaixo:")
+                                st.warning("A conta foi criada, mas o envio de e-mail não está configurado. Use a senha provisória exibida abaixo para o primeiro acesso:")
                                 st.code(senha_prov)
                         except (IntegrityError, Exception):
                             st.error("❌ Este e-mail já está cadastrado no banco de dados.")
@@ -280,7 +289,7 @@ if st.session_state.usuario_id is None:
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
             with st.form(key="form_rec_v24"):
-                rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
+                rec_email = st.text_input("E-mail cadastrado", key="rec_email_v24", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Enviar E-mail de Confirmação", type="primary", use_container_width=True)
                 if btn_rec:
                     if not rec_email or "@" not in rec_email:
@@ -307,14 +316,20 @@ if st.session_state.usuario_id is None:
                             st.error("❌ E-mail não encontrado no sistema.")
 
 # =============================================================================
-# BLOQUEIO DE PRIMEIRO ACESSO (CONFORMIDADE LGPD)
+# BLOQUEIO DE PRIMEIRO ACESSO (VALIDAÇÃO RÍGIDA LGPD)
 # =============================================================================
 elif st.session_state.primeiro_acesso == 1:
     col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por motivos de segurança, é obrigatório redefinir sua senha provisória atendendo aos requisitos mínimos de complexidade:")
-        st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula (A-Z)\n- Pelo menos 1 letra minúscula (a-z)\n- Pelo menos 1 número (0-9)\n- Pelo menos 1 caractere especial (!@#$%^&*)")
+        st.markdown("""
+        - Mínimo de **6 caracteres**
+        - Pelo menos **1 letra maiúscula** (A-Z)
+        - Pelo menos **1 letra minúscula** (a-z)
+        - Pelo menos **1 número** (0-9)
+        - Pelo menos **1 caractere especial** (`!@#$%^&*` etc.)
+        """)
         with st.form(key="form_primeiro_acesso_lgpd_v24"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
@@ -344,15 +359,24 @@ else:
     if "menu" not in st.session_state:
         st.session_state.menu = "Painel"
         
+    if "nav_radio_key" not in st.session_state or st.session_state.nav_radio_key != st.session_state.menu:
+        st.session_state.nav_radio_key = st.session_state.menu
+        
     def navegar_para(destino):
         st.session_state.menu = destino
+        st.session_state.nav_radio_key = destino
         
     with st.sidebar:
-        st.markdown(logo_html('brand-bag-img') if LOGO_PATH.exists() else '<div>💰 FAMT CONTROL</div>', unsafe_allow_html=True)
+        st.markdown(f"<div>{logo_html('brand-bag-img') if LOGO_PATH.exists() else '<div>💰 FAMT CONTROL</div>'}</div>", unsafe_allow_html=True)
         opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Metas", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
-        idx_menu = opcoes_menu.index(st.session_state.menu) if st.session_state.menu in opcoes_menu else 0
-        menu = st.radio("Navegação", opcoes_menu, index=idx_menu, key="nav_radio_key")
-        st.session_state.menu = menu
+        if st.session_state.menu not in opcoes_menu:
+            st.session_state.menu = "Painel"
+        idx_menu = opcoes_menu.index(st.session_state.menu)
+        
+        def ao_mudar_radio():
+            st.session_state.menu = st.session_state.nav_radio_key
+            
+        menu = st.radio("Navegação", opcoes_menu, index=idx_menu, key="nav_radio_key", on_change=ao_mudar_radio)
         st.divider()
         st.markdown(f"👤 **{st.session_state.email_logado}**")
         if st.button("Sair", use_container_width=True):
@@ -409,9 +433,7 @@ else:
         
     saldo_liquido = total_receitas - total_despesas
     
-    # =========================================================================
     # META FINANCEIRA
-    # =========================================================================
     if "meta_mes" not in st.session_state:
         st.session_state.meta_mes = 1000.00
     meta_mes = st.session_state.meta_mes
