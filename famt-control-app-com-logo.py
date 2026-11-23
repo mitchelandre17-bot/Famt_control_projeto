@@ -31,10 +31,10 @@ st.set_page_config(
 )
 
 # =============================================================================
-# LOGO E CONFIGURAÇÃO DA CONEXÃO MYSQL (EXCLUSIVA)
+# LOGO E CONEXÃO MYSQL
 # =============================================================================
-def logo_html(css_class="system-logo", max_height="60px"):
-    """Retorna a logo em base64 para funcionar dentro do HTML do Streamlit."""
+def logo_html(css_class="system-logo", max_height="48px"):
+    """Retorna a logo em base64 para renderização reativa HTML no Streamlit."""
     if not LOGO_PATH.exists():
         return "<h2>FAMT CONTROL</h2>"
     data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
@@ -62,7 +62,7 @@ def obter_conexao():
         st.stop()
 
 # =============================================================================
-# FUNÇÃO DE SAUDAÇÃO DINÂMICA (POR HORÁRIO DO DIA)
+# FUNÇÃO DE SAUDAÇÃO DINÂMICA
 # =============================================================================
 def obter_saudacao_horario():
     """Retorna a saudação apropriada com base na hora atual do sistema."""
@@ -75,7 +75,7 @@ def obter_saudacao_horario():
         return "🌙 Boa noite"
 
 # =============================================================================
-# MÓDULO DE SEGURANÇA, CRIPTOGRAFIA E VALIDAÇÕES (LGPD - REQ-EXT-01)
+# MÓDULO DE SEGURANÇA E CRIPTOGRAFIA (LGPD - REQ-EXT-01)
 # =============================================================================
 def _hash_senha(senha: str) -> str:
     """Gera hash SHA-256 irreversível para a senha."""
@@ -113,7 +113,7 @@ def gerar_senha_provisoria(tamanho: int = 8) -> str:
     return "".join(senha)
 
 def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> bool:
-    """Envia a senha provisória por e-mail via SMTP (suporta STARTTLS e SSL)."""
+    """Envia a senha provisória por e-mail via SMTP."""
     try:
         if not hasattr(st, "secrets") or "email" not in st.secrets:
             return False
@@ -200,7 +200,7 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =============================================================================
-# GERENCIAMENTO DE SESSÃO E PERSISTÊNCIA NO CELULAR
+# GERENCIAMENTO DE SESSÃO
 # =============================================================================
 if 'usuario_id' not in st.session_state:
     st.session_state.usuario_id = None
@@ -231,14 +231,14 @@ if st.session_state.usuario_id is None:
 if st.session_state.usuario_id is None:
     col_left, col_center, col_right = st.columns([1, 2, 1])
     with col_center:
-        st.markdown(f"<div style='text-align: center;'>{logo_html('login-logo', max_height='90px')}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center;'>{logo_html('login-logo', max_height='75px')}</div>", unsafe_allow_html=True)
         st.markdown("<h1 style='text-align: center;'>FAMT CONTROL</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center;'>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
         aba1, aba2, aba3 = st.tabs(["🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"])
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v46"):
+            with st.form(key="form_login_v49"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -267,7 +267,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v46"):
+            with st.form(key="form_cad_v49"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
@@ -295,7 +295,7 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v46"):
+            with st.form(key="form_rec_v49"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 if btn_rec:
@@ -331,7 +331,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        with st.form(key="form_pa_lgpd_v46"):
+        with st.form(key="form_pa_lgpd_v49"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -364,7 +364,7 @@ else:
         
     # Sidebar lateral com suporte à Logo
     with st.sidebar:
-        st.markdown(logo_html("sidebar-logo", max_height="50px"), unsafe_allow_html=True)
+        st.markdown(logo_html("sidebar-logo", max_height="40px"), unsafe_allow_html=True)
         opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Metas", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
         idx_menu = opcoes_menu.index(st.session_state.menu) if st.session_state.menu in opcoes_menu else 0
         menu = st.radio("Navegação", opcoes_menu, index=idx_menu, key="nav_radio")
@@ -438,8 +438,8 @@ else:
     # TELA: PAINEL
     # =========================================================================
     if menu == "Painel":
-        st.markdown(f"### 👋 {saudacao_tempo}, {nome_usuario}!")
-        st.caption("Seja bem-vindo(a) ao seu painel do **FAMT Control**. Confira suas movimentações e saldo consolidado.")
+        st.markdown(f"### 👋 Seja Bem-Vindo(a), {nome_usuario}!")
+        st.caption("Confira o resumo das suas movimentações e acompanhe seu saldo consolidado no **FAMT Control**.")
         
         c1, c2, c3, c4 = st.columns(4)
         with c1:
@@ -454,7 +454,7 @@ else:
         
         # --- FORMULÁRIO DE LANÇAMENTO RÁPIDO INCORPORADO NO PAINEL ---
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
-            with st.form("form_quick_lancamento_painel_v46", clear_on_submit=True):
+            with st.form("form_quick_lancamento_painel_v49", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 2, 1.5])
                 with col_f1:
                     tipo_p = st.selectbox("Tipo", ["Despesa", "Receita"], key="quick_tipo")
@@ -502,9 +502,9 @@ else:
                     if col not in mensal.columns:
                         mensal[col] = 0.0
                 fig = go.Figure()
-                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["RECEITA"], name="Receitas", marker_color="#43C6A6"))
-                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["DESPESA"], name="Despesas", marker_color="#FF6B6B"))
-                fig.update_layout(barmode="group", height=300, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#A0A0C0", legend=dict(orientation="h", y=1.12), margin=dict(l=10, r=10, t=10, b=10))
+                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["RECEITA"], name="Receitas", marker_color="#00FF66"))
+                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["DESPESA"], name="Despesas", marker_color="#FF0055"))
+                fig.update_layout(barmode="group", height=290, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#94A3B8", legend=dict(orientation="h", y=1.12), margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.info("ℹ️ Nenhuma movimentação registrada no período selecionado.")
@@ -515,9 +515,9 @@ else:
                 desp = df_calculo[df_calculo["Tipo_Norm"] == "DESPESA"]
                 if not desp.empty:
                     cats = desp.groupby("Categoria", as_index=False)["Valor"].sum().sort_values(by="Valor", ascending=False)
-                    paleta_despesas = ["#FF6B6B", "#FF8E8E", "#E55039", "#F8A5C2", "#F78FB3", "#EA2027"]
+                    paleta_despesas = ["#FF0055", "#A855F7", "#00F0FF", "#FF007F", "#7C3AED", "#FF6699"]
                     fig_cat = px.pie(cats, names="Categoria", values="Valor", hole=0.6, color_discrete_sequence=paleta_despesas)
-                    fig_cat.update_layout(height=300, paper_bgcolor="rgba(0,0,0,0)", font_color="#A0A0C0", legend=dict(orientation="h", y=-0.15), margin=dict(l=10, r=10, t=10, b=10))
+                    fig_cat.update_layout(height=290, paper_bgcolor="rgba(0,0,0,0)", font_color="#94A3B8", legend=dict(orientation="h", y=-0.15), margin=dict(l=10, r=10, t=10, b=10))
                     fig_cat.update_traces(textposition="inside", textinfo="percent+label")
                     st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
                 else:
@@ -533,7 +533,7 @@ else:
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v46", clear_on_submit=True):
+        with st.form("form_lancamento_v49", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -603,7 +603,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v46"):
+            with st.form("form_editar_v49"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -633,7 +633,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v46")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v49")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
@@ -675,9 +675,9 @@ else:
                 y="Valor", 
                 color="Tipo_Norm", 
                 barmode="group", 
-                color_discrete_map={"RECEITA": "#43C6A6", "DESPESA": "#FF6B6B"}
+                color_discrete_map={"RECEITA": "#00FF66", "DESPESA": "#FF0055"}
             )
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#A0A0C0")
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#94A3B8")
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Sem dados para gerar gráficos.")
