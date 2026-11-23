@@ -31,7 +31,7 @@ st.set_page_config(
 )
 
 # =============================================================================
-# LOGO E CONEXÃO MYSQL
+# LOGO E CONFIGURAÇÃO DA CONEXÃO MYSQL
 # =============================================================================
 def logo_html(css_class="system-logo", max_height="48px"):
     """Retorna a logo em base64 para renderização reativa HTML no Streamlit."""
@@ -163,7 +163,8 @@ def inicializar_banco():
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 senha_hash VARCHAR(255) NOT NULL,
-                primeiro_acesso INT DEFAULT 1 CHECK (primeiro_acesso IN (0, 1))
+                primeiro_acesso INT DEFAULT 1 CHECK (primeiro_acesso IN (0, 1)),
+                meta_mes DECIMAL(10,2) DEFAULT 1000.00
             ) ENGINE=InnoDB;
         """)
         cursor.execute("""
@@ -187,7 +188,7 @@ def inicializar_banco():
 inicializar_banco()
 
 # =============================================================================
-# ESTILIZAÇÃO VISUAL
+# ESTILIZAÇÃO VISUAL MODERNA
 # =============================================================================
 CUSTOM_CSS = """
 <style>
@@ -215,13 +216,14 @@ if st.session_state.usuario_id is None:
         try:
             conexao = obter_conexao()
             cursor = conexao.cursor()
-            cursor.execute("SELECT id, email, primeiro_acesso FROM Usuarios WHERE id = %s", (qp_uid,))
+            cursor.execute("SELECT id, email, primeiro_acesso, meta_mes FROM Usuarios WHERE id = %s", (qp_uid,))
             usr_rec = cursor.fetchone()
             conexao.close()
             if usr_rec:
                 st.session_state.usuario_id = usr_rec[0]
                 st.session_state.email_logado = usr_rec[1]
                 st.session_state.primeiro_acesso = usr_rec[2]
+                st.session_state.meta_mes = float(usr_rec[3]) if usr_rec[3] else 1000.00
         except Exception:
             pass
 
@@ -238,7 +240,7 @@ if st.session_state.usuario_id is None:
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v49"):
+            with st.form(key="form_login_v50"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -248,15 +250,16 @@ if st.session_state.usuario_id is None:
                     else:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
-                        cursor.execute("SELECT id, senha_hash, primeiro_acesso FROM Usuarios WHERE email = %s", (email,))
+                        cursor.execute("SELECT id, senha_hash, primeiro_acesso, meta_mes FROM Usuarios WHERE email = %s", (email,))
                         usuario = cursor.fetchone()
                         conexao.close()
                         if usuario:
-                            u_id, hash_banco, prim_acesso = usuario
+                            u_id, hash_banco, prim_acesso, meta_b = usuario
                             if _hash_senha(senha) == hash_banco:
                                 st.session_state.usuario_id = u_id
                                 st.session_state.email_logado = email
                                 st.session_state.primeiro_acesso = prim_acesso
+                                st.session_state.meta_mes = float(meta_b) if meta_b else 1000.00
                                 st.query_params["uid"] = str(u_id)
                                 st.toast("🔓 Login efetuado com sucesso!", icon="✅")
                                 st.rerun()
@@ -267,7 +270,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v49"):
+            with st.form(key="form_cad_v50"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
@@ -279,7 +282,7 @@ if st.session_state.usuario_id is None:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
                         try:
-                            cursor.execute("INSERT INTO Usuarios (email, senha_hash, primeiro_acesso) VALUES (%s, %s, 1)", (novo_email, senha_hash))
+                            cursor.execute("INSERT INTO Usuarios (email, senha_hash, primeiro_acesso, meta_mes) VALUES (%s, %s, 1, 1000.00)", (novo_email, senha_hash))
                             conexao.commit()
                             email_enviado = enviar_senha_provisoria_email(novo_email, senha_prov)
                             st.toast("Conta criada com sucesso!", icon="✅")
@@ -295,7 +298,7 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v49"):
+            with st.form(key="form_rec_v50"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 if btn_rec:
@@ -331,7 +334,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        with st.form(key="form_pa_lgpd_v49"):
+        with st.form(key="form_pa_lgpd_v50"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -424,10 +427,7 @@ else:
         
     # CÁLCULO DO SALDO LÍQUIDO
     saldo_liquido = total_receitas - total_despesas
-    
-    if "meta_mes" not in st.session_state:
-        st.session_state.meta_mes = 1000.00
-    meta_mes = st.session_state.meta_mes
+    meta_mes = float(st.session_state.get("meta_mes", 1000.00))
     progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
     
     # Extração segura do primeiro nome do e-mail cadastrado
@@ -454,7 +454,7 @@ else:
         
         # --- FORMULÁRIO DE LANÇAMENTO RÁPIDO INCORPORADO NO PAINEL ---
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
-            with st.form("form_quick_lancamento_painel_v49", clear_on_submit=True):
+            with st.form("form_quick_lancamento_painel_v50", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 2, 1.5])
                 with col_f1:
                     tipo_p = st.selectbox("Tipo", ["Despesa", "Receita"], key="quick_tipo")
@@ -502,8 +502,8 @@ else:
                     if col not in mensal.columns:
                         mensal[col] = 0.0
                 fig = go.Figure()
-                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["RECEITA"], name="Receitas", marker_color="#00FF66"))
-                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["DESPESA"], name="Despesas", marker_color="#FF0055"))
+                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["RECEITA"], name="Receitas", marker_color="#00E676"))
+                fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["DESPESA"], name="Despesas", marker_color="#FF3D00"))
                 fig.update_layout(barmode="group", height=290, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#94A3B8", legend=dict(orientation="h", y=1.12), margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             else:
@@ -515,7 +515,7 @@ else:
                 desp = df_calculo[df_calculo["Tipo_Norm"] == "DESPESA"]
                 if not desp.empty:
                     cats = desp.groupby("Categoria", as_index=False)["Valor"].sum().sort_values(by="Valor", ascending=False)
-                    paleta_despesas = ["#FF0055", "#A855F7", "#00F0FF", "#FF007F", "#7C3AED", "#FF6699"]
+                    paleta_despesas = ["#FF3D00", "#A855F7", "#00F0FF", "#FF007F", "#7C3AED", "#FF6699"]
                     fig_cat = px.pie(cats, names="Categoria", values="Valor", hole=0.6, color_discrete_sequence=paleta_despesas)
                     fig_cat.update_layout(height=290, paper_bgcolor="rgba(0,0,0,0)", font_color="#94A3B8", legend=dict(orientation="h", y=-0.15), margin=dict(l=10, r=10, t=10, b=10))
                     fig_cat.update_traces(textposition="inside", textinfo="percent+label")
@@ -533,7 +533,7 @@ else:
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v49", clear_on_submit=True):
+        with st.form("form_lancamento_v50", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -603,7 +603,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v49"):
+            with st.form("form_editar_v50"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -633,7 +633,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v49")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v50")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
@@ -657,12 +657,27 @@ else:
     # =========================================================================
     elif menu == "Metas":
         st.title("🎯 Metas Financeiras")
-        nova_meta = st.number_input("Definir Meta do Mês (R$)", min_value=1.0, value=float(st.session_state.meta_mes), step=100.0)
-        if st.button("Salvar Meta", type="primary"):
-            st.session_state.meta_mes = float(nova_meta)
-            st.success("Meta atualizada com sucesso!")
-            st.rerun()
-            
+        st.caption("Defina a meta de economia para a sua conta e salve permanentemente.")
+        meta_atual_val = float(st.session_state.get("meta_mes", 1000.00))
+        nova_meta = st.number_input("Definir Meta do Mês (R$)", min_value=1.0, value=meta_atual_val, step=100.0)
+        if st.button("💾 Salvar Meta no Banco", type="primary"):
+            conexao = obter_conexao()
+            cursor = conexao.cursor()
+            try:
+                cursor.execute("""
+                    UPDATE Usuarios SET meta_mes = %s WHERE id = %s
+                """, (nova_meta, st.session_state.usuario_id))
+                conexao.commit()
+                st.session_state.meta_mes = float(nova_meta)
+                st.toast("🎉 Meta salva permanentemente!", icon="✅")
+                st.success("Meta atualizada com sucesso no banco de dados!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar a meta: {e}")
+            finally:
+                cursor.close()
+                conexao.close()
+                
     # =========================================================================
     # TELA: GRÁFICOS
     # =========================================================================
@@ -675,7 +690,7 @@ else:
                 y="Valor", 
                 color="Tipo_Norm", 
                 barmode="group", 
-                color_discrete_map={"RECEITA": "#00FF66", "DESPESA": "#FF0055"}
+                color_discrete_map={"RECEITA": "#00E676", "DESPESA": "#FF3D00"}
             )
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#94A3B8")
             st.plotly_chart(fig, use_container_width=True)
