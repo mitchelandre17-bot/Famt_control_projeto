@@ -62,19 +62,6 @@ def obter_conexao():
         st.stop()
 
 # =============================================================================
-# FUNÇÃO DE SAUDAÇÃO DINÂMICA
-# =============================================================================
-def obter_saudacao_horario():
-    """Retorna a saudação apropriada com base na hora atual do sistema."""
-    hora = datetime.now().hour
-    if 5 <= hora < 12:
-        return "☀️ Bom dia"
-    elif 12 <= hora < 18:
-        return "🌤️ Boa tarde"
-    else:
-        return "🌙 Boa noite"
-
-# =============================================================================
 # MÓDULO DE SEGURANÇA E CRIPTOGRAFIA (LGPD - REQ-EXT-01)
 # =============================================================================
 def _hash_senha(senha: str) -> str:
@@ -151,10 +138,10 @@ def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> 
         return False
 
 # =============================================================================
-# INICIALIZAÇÃO DO BANCO DE DADOS MYSQL
+# INICIALIZAÇÃO DO BANCO DE DADOS MYSQL (COM ALTER TABLE AUTOMÁTICO)
 # =============================================================================
 def inicializar_banco():
-    """Cria as tabelas do MySQL caso ainda não existam."""
+    """Cria as tabelas do MySQL caso não existam e garante a coluna meta_mes."""
     try:
         conexao = obter_conexao()
         cursor = conexao.cursor()
@@ -167,6 +154,12 @@ def inicializar_banco():
                 meta_mes DECIMAL(10,2) DEFAULT 1000.00
             ) ENGINE=InnoDB;
         """)
+        try:
+            cursor.execute("ALTER TABLE Usuarios ADD COLUMN meta_mes DECIMAL(10,2) DEFAULT 1000.00;")
+            conexao.commit()
+        except Exception:
+            pass 
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Transacoes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -223,7 +216,7 @@ if st.session_state.usuario_id is None:
                 st.session_state.usuario_id = usr_rec[0]
                 st.session_state.email_logado = usr_rec[1]
                 st.session_state.primeiro_acesso = usr_rec[2]
-                st.session_state.meta_mes = float(usr_rec[3]) if usr_rec[3] else 1000.00
+                st.session_state.meta_mes = float(usr_rec[3]) if usr_rec[3] is not None else 1000.00
         except Exception:
             pass
 
@@ -240,7 +233,7 @@ if st.session_state.usuario_id is None:
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v50"):
+            with st.form(key="form_login_v51"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -259,7 +252,7 @@ if st.session_state.usuario_id is None:
                                 st.session_state.usuario_id = u_id
                                 st.session_state.email_logado = email
                                 st.session_state.primeiro_acesso = prim_acesso
-                                st.session_state.meta_mes = float(meta_b) if meta_b else 1000.00
+                                st.session_state.meta_mes = float(meta_b) if meta_b is not None else 1000.00
                                 st.query_params["uid"] = str(u_id)
                                 st.toast("🔓 Login efetuado com sucesso!", icon="✅")
                                 st.rerun()
@@ -270,7 +263,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v50"):
+            with st.form(key="form_cad_v51"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
@@ -298,7 +291,7 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v50"):
+            with st.form(key="form_rec_v51"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 if btn_rec:
@@ -334,7 +327,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        with st.form(key="form_pa_lgpd_v50"):
+        with st.form(key="form_pa_lgpd_v51"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -365,7 +358,6 @@ else:
     def navegar_para(destino):
         st.session_state.menu = destino
         
-    # Sidebar lateral com suporte à Logo
     with st.sidebar:
         st.markdown(logo_html("sidebar-logo", max_height="40px"), unsafe_allow_html=True)
         opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Metas", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
@@ -381,7 +373,6 @@ else:
             st.query_params.clear()
             st.rerun()
             
-    # Período de Análise (Mês Atual)
     agora = datetime.now()
     primeiro_dia_mes = agora.replace(day=1).date()
     ultimo_dia_num = calendar.monthrange(agora.year, agora.month)[1]
@@ -395,7 +386,6 @@ else:
     def moeda(val):
         return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-    # Consulta dos Lançamentos no MySQL
     conexao = obter_conexao()
     cursor = conexao.cursor()
     cursor.execute("""
@@ -425,14 +415,11 @@ else:
         total_receitas = 0.0
         total_despesas = 0.0
         
-    # CÁLCULO DO SALDO LÍQUIDO
     saldo_liquido = total_receitas - total_despesas
     meta_mes = float(st.session_state.get("meta_mes", 1000.00))
     progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
     
-    # Extração segura do primeiro nome do e-mail cadastrado
     nome_usuario = st.session_state.email_logado.split('@')[0].capitalize() if st.session_state.email_logado else "Usuário"
-    saudacao_tempo = obter_saudacao_horario()
     
     # =========================================================================
     # TELA: PAINEL
@@ -452,9 +439,8 @@ else:
             st.metric("🎯 Meta do Mês", moeda(meta_mes), delta=f"{progresso_meta}% Atingido")
         st.markdown("<br />", unsafe_allow_html=True)
         
-        # --- FORMULÁRIO DE LANÇAMENTO RÁPIDO INCORPORADO NO PAINEL ---
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
-            with st.form("form_quick_lancamento_painel_v50", clear_on_submit=True):
+            with st.form("form_quick_lancamento_painel_v51", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 2, 1.5])
                 with col_f1:
                     tipo_p = st.selectbox("Tipo", ["Despesa", "Receita"], key="quick_tipo")
@@ -490,7 +476,6 @@ else:
                             
         st.divider()
         
-        # --- GRÁFICOS ANALÍTICOS ---
         col_g1, col_g2 = st.columns([1.6, 1.4])
         with col_g1:
             st.subheader("📈 Comparativo de Receitas x Despesas")
@@ -533,7 +518,7 @@ else:
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v50", clear_on_submit=True):
+        with st.form("form_lancamento_v51", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -603,7 +588,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v50"):
+            with st.form("form_editar_v51"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -633,7 +618,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v50")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v51")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
