@@ -233,7 +233,7 @@ if st.session_state.usuario_id is None:
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v51"):
+            with st.form(key="form_login_v53"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -263,7 +263,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v51"):
+            with st.form(key="form_cad_v53"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
@@ -291,7 +291,7 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v51"):
+            with st.form(key="form_rec_v53"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 if btn_rec:
@@ -327,7 +327,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        with st.form(key="form_pa_lgpd_v51"):
+        with st.form(key="form_pa_lgpd_v53"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -440,7 +440,7 @@ else:
         st.markdown("<br />", unsafe_allow_html=True)
         
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
-            with st.form("form_quick_lancamento_painel_v51", clear_on_submit=True):
+            with st.form("form_quick_lancamento_painel_v53", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 2, 1.5])
                 with col_f1:
                     tipo_p = st.selectbox("Tipo", ["Despesa", "Receita"], key="quick_tipo")
@@ -518,7 +518,7 @@ else:
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v51", clear_on_submit=True):
+        with st.form("form_lancamento_v53", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -588,7 +588,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v51"):
+            with st.form("form_editar_v53"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -618,7 +618,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v51")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v53")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
