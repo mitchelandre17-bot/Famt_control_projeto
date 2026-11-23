@@ -657,7 +657,7 @@ else:
     # =========================================================================
     elif menu == "Metas":
         st.title("🎯 Metas Financeiras")
-        st.caption("Defina a meta de economia para a sua conta e salve permanentemente.")
+        st.caption("Defina a meta de economia para a sua conta e salve permanentemente no MySQL.")
         meta_atual_val = float(st.session_state.get("meta_mes", 1000.00))
         nova_meta = st.number_input("Definir Meta do Mês (R$)", min_value=1.0, value=meta_atual_val, step=100.0)
         if st.button("💾 Salvar Meta no Banco", type="primary"):
