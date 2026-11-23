@@ -62,6 +62,18 @@ def obter_conexao():
         st.stop()
 
 # =============================================================================
+# FUNÇÃO DE SAUDAÇÃO DINÂMICA POR HORÁRIO
+# =============================================================================
+def obter_saudacao_horario():
+    hora = datetime.now().hour
+    if 5 <= hora < 12:
+        return "☀️ Bom dia"
+    elif 12 <= hora < 18:
+        return "🌤️ Boa tarde"
+    else:
+        return "🌙 Boa noite"
+
+# =============================================================================
 # MÓDULO DE SEGURANÇA E CRIPTOGRAFIA (LGPD - REQ-EXT-01)
 # =============================================================================
 def _hash_senha(senha: str) -> str:
@@ -174,20 +186,24 @@ def inicializar_banco():
 inicializar_banco()
 
 # =============================================================================
-# ESTILIZAÇÃO VISUAL MODERNA
+# ESTILIZAÇÃO VISUAL MODERNA (FINTECH UI)
 # =============================================================================
 CUSTOM_CSS = """
 <style>
     .stApp {
-        background-color: #0E1117;
+        background-color: #0B0E14;
         color: #E8E7F5;
+    }
+    div.stButton > button {
+        border-radius: 8px;
+        font-weight: 600;
     }
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =============================================================================
-# GERENCIAMENTO DE SESSÃO COM CORREÇÃO DE UNPACKING
+# GERENCIAMENTO DE SESSÃO
 # =============================================================================
 if 'usuario_id' not in st.session_state:
     st.session_state.usuario_id = None
@@ -220,13 +236,13 @@ if st.session_state.usuario_id is None:
     col_left, col_center, col_right = st.columns([1, 2, 1])
     with col_center:
         st.markdown(f"<div style='text-align: center;'>{logo_html('login-logo', max_height='75px')}</div>", unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align: center;'>FAMT CONTROL</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center;'>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #FFFFFF;'>FAMT CONTROL</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #8B949E;'>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
         aba1, aba2, aba3 = st.tabs(["🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"])
         
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
-            with st.form(key="form_login_v53"):
+            with st.form(key="form_login_v55"):
                 email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", placeholder="••••••••").strip()
                 btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
@@ -255,7 +271,7 @@ if st.session_state.usuario_id is None:
                             
         with aba2:
             st.markdown("### 📝 Criar nova conta")
-            with st.form(key="form_cad_v53"):
+            with st.form(key="form_cad_v55"):
                 novo_email = st.text_input("E-mail para cadastro", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
@@ -283,7 +299,7 @@ if st.session_state.usuario_id is None:
                             
         with aba3:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
-            with st.form(key="form_rec_v53"):
+            with st.form(key="form_rec_v55"):
                 rec_email = st.text_input("E-mail cadastrado", placeholder="seu.email@exemplo.com").strip().lower()
                 btn_rec = st.form_submit_button("🔑 Gerar Nova Senha Provisória", type="primary", use_container_width=True)
                 if btn_rec:
@@ -319,7 +335,7 @@ elif st.session_state.primeiro_acesso == 1:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por segurança, cadastre uma nova senha atendendo aos requisitos mínimos:")
         st.markdown("- Mínimo de 6 caracteres\n- Pelo menos 1 letra maiúscula\n- Pelo menos 1 letra minúscula\n- Pelo menos 1 número\n- Pelo menos 1 caractere especial (!@#$%^&*)")
-        with st.form(key="form_pa_lgpd_v53"):
+        with st.form(key="form_pa_lgpd_v55"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
             btn_pa = st.form_submit_button("💾 Salvar Senha Definitiva", use_container_width=True, type="primary")
@@ -409,24 +425,26 @@ else:
         
     saldo_liquido = total_receitas - total_despesas
     
-    # TRATAMENTO CORRETO DO STRING DO EMAIL
+    # TRATAMENTO CORRETO DO NOME DO USUÁRIO
     if st.session_state.email_logado and "@" in str(st.session_state.email_logado):
         nome_usuario = str(st.session_state.email_logado).split('@')[0].capitalize()
     else:
         nome_usuario = "Usuário"
         
+    saudacao_tempo = obter_saudacao_horario()
+    
     # =========================================================================
-    # TELA: PAINEL
+    # TELA: PAINEL (UI MODERNA REFORMULADA)
     # =========================================================================
     if menu == "Painel":
         st.markdown(f"""
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="background: linear-gradient(135deg, #161B22 0%, #1F242C 100%); padding: 24px; border-radius: 12px; border: 1px solid #30363D; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
             <div>
-                <div style="font-size: 1.5rem; font-weight: bold;">👋 Seja Bem-Vindo(a), {nome_usuario}!</div>
-                <div>Confira o resumo das suas movimentações e acompanhe seu saldo consolidado no <strong>FAMT Control</strong>.</div>
+                <div style="font-size: 1.6rem; font-weight: 700; color: #FFFFFF;">{saudacao_tempo}, {nome_usuario}! 👋</div>
+                <div style="font-size: 0.95rem; color: #8B949E; margin-top: 4px;">Aqui está o resumo financeiro atualizado da sua conta no <strong>FAMT Control</strong>.</div>
             </div>
             <div>
-                {logo_html("dash-header-logo", max_height="38px")}
+                {logo_html("dash-header-logo", max_height="44px")}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -434,16 +452,18 @@ else:
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown(f"""
-            <div style="background: #161B22; padding: 15px; border-radius: 8px; border: 1px solid #30363D;">
-                <div style="color: #8B949E; font-size: 0.9rem;">↗ Total de Receitas</div>
-                <div style="color: #00E676; font-size: 1.5rem; font-weight: bold;">+{moeda(total_receitas)}</div>
+            <div style="background: #161B22; padding: 20px; border-radius: 10px; border: 1px solid #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="color: #8B949E; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">↗ Total de Receitas</div>
+                <div style="color: #00E676; font-size: 1.8rem; font-weight: 800; margin-top: 8px;">+{moeda(total_receitas)}</div>
+                <div style="color: #8B949E; font-size: 0.75rem; margin-top: 4px;">Entradas registradas no período</div>
             </div>
             """, unsafe_allow_html=True)
         with c2:
             st.markdown(f"""
-            <div style="background: #161B22; padding: 15px; border-radius: 8px; border: 1px solid #30363D;">
-                <div style="color: #8B949E; font-size: 0.9rem;">↘ Total de Despesas</div>
-                <div style="color: #FF3D00; font-size: 1.5rem; font-weight: bold;">-{moeda(total_despesas)}</div>
+            <div style="background: #161B22; padding: 20px; border-radius: 10px; border: 1px solid #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="color: #8B949E; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">↘ Total de Despesas</div>
+                <div style="color: #FF3D00; font-size: 1.8rem; font-weight: 800; margin-top: 8px;">-{moeda(total_despesas)}</div>
+                <div style="color: #8B949E; font-size: 0.75rem; margin-top: 4px;">Saídas registradas no período</div>
             </div>
             """, unsafe_allow_html=True)
         with c3:
@@ -451,15 +471,17 @@ else:
             val_abs = abs(saldo_liquido)
             cor_saldo = "#00E676" if saldo_liquido >= 0 else "#FF3D00"
             st.markdown(f"""
-            <div style="background: #161B22; padding: 15px; border-radius: 8px; border: 1px solid #30363D;">
-                <div style="color: #8B949E; font-size: 0.9rem;">◎ Saldo Líquido</div>
-                <div style="color: {cor_saldo}; font-size: 1.5rem; font-weight: bold;">{sinal_saldo}{moeda(val_abs)}</div>
+            <div style="background: #161B22; padding: 20px; border-radius: 10px; border: 1px solid #30363D; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <div style="color: #8B949E; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">◎ Saldo Líquido Consolidado</div>
+                <div style="color: {cor_saldo}; font-size: 1.8rem; font-weight: 800; margin-top: 8px;">{sinal_saldo}{moeda(val_abs)}</div>
+                <div style="color: #8B949E; font-size: 0.75rem; margin-top: 4px;">Balanço atual das finanças</div>
             </div>
             """, unsafe_allow_html=True)
+            
         st.markdown("<br />", unsafe_allow_html=True)
         
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
-            with st.form("form_quick_lancamento_painel_v53", clear_on_submit=True):
+            with st.form("form_quick_lancamento_painel_v55", clear_on_submit=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns([1.2, 1.2, 2, 1.5])
                 with col_f1:
                     tipo_p = st.selectbox("Tipo", ["Despesa", "Receita"], key="quick_tipo")
@@ -483,7 +505,7 @@ else:
                             cursor.execute("""
                                 INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria) 
                                 VALUES (%s, %s, %s, %s, %s, %s)
-                            """, ( st.session_state.usuario_id, valor_p, tipo_sanitizado_q, data_hora_quick, desc_p.strip(), cat_p ))
+                            """, (st.session_state.usuario_id, valor_p, tipo_sanitizado_q, data_hora_quick, desc_p.strip(), cat_p))
                             conexao.commit()
                             st.toast(f"🎉 Lançamento de R$ {valor_p:.2f} salvo com sucesso!", icon="✅")
                             st.rerun()
@@ -575,7 +597,7 @@ else:
     elif menu == "Lançar":
         st.title("＋ Novo Lançamento")
         st.caption("Cadastre receitas ou despesas com atualização automática do saldo.")
-        with st.form("form_lancamento_v53", clear_on_submit=True):
+        with st.form("form_lancamento_v55", clear_on_submit=True):
             tipo = st.selectbox("Tipo de Movimentação", ["Despesa", "Receita"])
             valor = st.number_input("Valor (R$)", min_value=0.01, value=50.00, step=10.00)
             descricao = st.text_input("Descrição detalhada", placeholder="Ex: Mensalidade, Almoço, Estágio")
@@ -645,7 +667,7 @@ else:
             
             atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             st.markdown("### ✏️ Editar Lançamento")
-            with st.form("form_editar_v53"):
+            with st.form("form_editar_v55"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if str(atual["Tipo"]).strip().upper() == "DESPESA" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=10.00)
                 cats = ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Outros"]
@@ -675,7 +697,7 @@ else:
                             conexao.close()
                             
             with st.expander("🗑️ Excluir lançamento"):
-                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v53")
+                confirmar = st.checkbox("Confirmo a exclusão permanente deste lançamento.", key="del_chk_v55")
                 if st.button("Excluir Selecionado", type="secondary", disabled=not confirmar, use_container_width=True):
                     conexao = obter_conexao()
                     cursor = conexao.cursor()
