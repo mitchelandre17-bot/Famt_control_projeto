@@ -138,10 +138,10 @@ def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> 
         return False
 
 # =============================================================================
-# INICIALIZAÇÃO DO BANCO DE DADOS MYSQL (COM ALTER TABLE AUTOMÁTICO)
+# INICIALIZAÇÃO DO BANCO DE DADOS MYSQL
 # =============================================================================
 def inicializar_banco():
-    """Cria as tabelas do MySQL caso não existam e garante a coluna meta_mes."""
+    """Cria as tabelas do MySQL caso ainda não existam."""
     try:
         conexao = obter_conexao()
         cursor = conexao.cursor()
@@ -150,16 +150,9 @@ def inicializar_banco():
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 senha_hash VARCHAR(255) NOT NULL,
-                primeiro_acesso INT DEFAULT 1 CHECK (primeiro_acesso IN (0, 1)),
-                meta_mes DECIMAL(10,2) DEFAULT 1000.00
+                primeiro_acesso INT DEFAULT 1 CHECK (primeiro_acesso IN (0, 1))
             ) ENGINE=InnoDB;
         """)
-        try:
-            cursor.execute("ALTER TABLE Usuarios ADD COLUMN meta_mes DECIMAL(10,2) DEFAULT 1000.00;")
-            conexao.commit()
-        except Exception:
-            pass 
-
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS Transacoes (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -194,7 +187,7 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =============================================================================
-# GERENCIAMENTO DE SESSÃO
+# GERENCIAMENTO DE SESSÃO COM CORREÇÃO DE UNPACKING
 # =============================================================================
 if 'usuario_id' not in st.session_state:
     st.session_state.usuario_id = None
@@ -209,14 +202,14 @@ if st.session_state.usuario_id is None:
         try:
             conexao = obter_conexao()
             cursor = conexao.cursor()
-            cursor.execute("SELECT id, email, primeiro_acesso, meta_mes FROM Usuarios WHERE id = %s", (qp_uid,))
+            cursor.execute("SELECT id, email, primeiro_acesso FROM Usuarios WHERE id = %s", (qp_uid,))
             usr_rec = cursor.fetchone()
+            cursor.close()
             conexao.close()
             if usr_rec:
                 st.session_state.usuario_id = usr_rec[0]
                 st.session_state.email_logado = usr_rec[1]
                 st.session_state.primeiro_acesso = usr_rec[2]
-                st.session_state.meta_mes = float(usr_rec[3]) if usr_rec[3] is not None else 1000.00
         except Exception:
             pass
 
@@ -243,16 +236,15 @@ if st.session_state.usuario_id is None:
                     else:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
-                        cursor.execute("SELECT id, senha_hash, primeiro_acesso, meta_mes FROM Usuarios WHERE email = %s", (email,))
+                        cursor.execute("SELECT id, senha_hash, primeiro_acesso FROM Usuarios WHERE email = %s", (email,))
                         usuario = cursor.fetchone()
                         conexao.close()
                         if usuario:
-                            u_id, hash_banco, prim_acesso, meta_b = usuario
+                            u_id, hash_banco, prim_acesso = usuario
                             if _hash_senha(senha) == hash_banco:
                                 st.session_state.usuario_id = u_id
                                 st.session_state.email_logado = email
                                 st.session_state.primeiro_acesso = prim_acesso
-                                st.session_state.meta_mes = float(meta_b) if meta_b is not None else 1000.00
                                 st.query_params["uid"] = str(u_id)
                                 st.toast("🔓 Login efetuado com sucesso!", icon="✅")
                                 st.rerun()
@@ -275,7 +267,7 @@ if st.session_state.usuario_id is None:
                         conexao = obter_conexao()
                         cursor = conexao.cursor()
                         try:
-                            cursor.execute("INSERT INTO Usuarios (email, senha_hash, primeiro_acesso, meta_mes) VALUES (%s, %s, 1, 1000.00)", (novo_email, senha_hash))
+                            cursor.execute("INSERT INTO Usuarios (email, senha_hash, primeiro_acesso) VALUES (%s, %s, 1)", (novo_email, senha_hash))
                             conexao.commit()
                             email_enviado = enviar_senha_provisoria_email(novo_email, senha_prov)
                             st.toast("Conta criada com sucesso!", icon="✅")
@@ -360,7 +352,7 @@ else:
         
     with st.sidebar:
         st.markdown(logo_html("sidebar-logo", max_height="40px"), unsafe_allow_html=True)
-        opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Metas", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
+        opcoes_menu = ["Painel", "Lançar", "Extrato e Edição", "Gráficos", "Notificações", "Alertas e Dicas", "Configurações"]
         idx_menu = opcoes_menu.index(st.session_state.menu) if st.session_state.menu in opcoes_menu else 0
         menu = st.radio("Navegação", opcoes_menu, index=idx_menu, key="nav_radio")
         st.session_state.menu = menu
@@ -416,27 +408,54 @@ else:
         total_despesas = 0.0
         
     saldo_liquido = total_receitas - total_despesas
-    meta_mes = float(st.session_state.get("meta_mes", 1000.00))
-    progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
     
-    nome_usuario = st.session_state.email_logado.split('@')[0].capitalize() if st.session_state.email_logado else "Usuário"
-    
+    # TRATAMENTO CORRETO DO STRING DO EMAIL
+    if st.session_state.email_logado and "@" in str(st.session_state.email_logado):
+        nome_usuario = str(st.session_state.email_logado).split('@')[0].capitalize()
+    else:
+        nome_usuario = "Usuário"
+        
     # =========================================================================
     # TELA: PAINEL
     # =========================================================================
     if menu == "Painel":
-        st.markdown(f"### 👋 Seja Bem-Vindo(a), {nome_usuario}!")
-        st.caption("Confira o resumo das suas movimentações e acompanhe seu saldo consolidado no **FAMT Control**.")
+        st.markdown(f"""
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 1.5rem; font-weight: bold;">👋 Seja Bem-Vindo(a), {nome_usuario}!</div>
+                <div>Confira o resumo das suas movimentações e acompanhe seu saldo consolidado no <strong>FAMT Control</strong>.</div>
+            </div>
+            <div>
+                {logo_html("dash-header-logo", max_height="38px")}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("↗ Total de Receitas", moeda(total_receitas), delta="Entradas", delta_color="normal")
+            st.markdown(f"""
+            <div style="background: #161B22; padding: 15px; border-radius: 8px; border: 1px solid #30363D;">
+                <div style="color: #8B949E; font-size: 0.9rem;">↗ Total de Receitas</div>
+                <div style="color: #00E676; font-size: 1.5rem; font-weight: bold;">+{moeda(total_receitas)}</div>
+            </div>
+            """, unsafe_allow_html=True)
         with c2:
-            st.metric("↘ Total de Despesas", moeda(total_despesas), delta="Saídas", delta_color="inverse")
+            st.markdown(f"""
+            <div style="background: #161B22; padding: 15px; border-radius: 8px; border: 1px solid #30363D;">
+                <div style="color: #8B949E; font-size: 0.9rem;">↘ Total de Despesas</div>
+                <div style="color: #FF3D00; font-size: 1.5rem; font-weight: bold;">-{moeda(total_despesas)}</div>
+            </div>
+            """, unsafe_allow_html=True)
         with c3:
-            st.metric("◎ Saldo Líquido", moeda(saldo_liquido), delta="Positivo" if saldo_liquido >= 0 else "Devedor", delta_color="normal" if saldo_liquido >= 0 else "inverse")
-        with c4:
-            st.metric("🎯 Meta do Mês", moeda(meta_mes), delta=f"{progresso_meta}% Atingido")
+            sinal_saldo = "+" if saldo_liquido > 0 else ("" if saldo_liquido == 0 else "-")
+            val_abs = abs(saldo_liquido)
+            cor_saldo = "#00E676" if saldo_liquido >= 0 else "#FF3D00"
+            st.markdown(f"""
+            <div style="background: #161B22; padding: 15px; border-radius: 8px; border: 1px solid #30363D;">
+                <div style="color: #8B949E; font-size: 0.9rem;">◎ Saldo Líquido</div>
+                <div style="color: {cor_saldo}; font-size: 1.5rem; font-weight: bold;">{sinal_saldo}{moeda(val_abs)}</div>
+            </div>
+            """, unsafe_allow_html=True)
         st.markdown("<br />", unsafe_allow_html=True)
         
         with st.expander("＋ **Novo Lançamento Rápido**", expanded=True):
@@ -464,7 +483,7 @@ else:
                             cursor.execute("""
                                 INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria) 
                                 VALUES (%s, %s, %s, %s, %s, %s)
-                            """, (st.session_state.usuario_id, valor_p, tipo_sanitizado_q, data_hora_quick, desc_p.strip(), cat_p))
+                            """, ( st.session_state.usuario_id, valor_p, tipo_sanitizado_q, data_hora_quick, desc_p.strip(), cat_p ))
                             conexao.commit()
                             st.toast(f"🎉 Lançamento de R$ {valor_p:.2f} salvo com sucesso!", icon="✅")
                             st.rerun()
@@ -512,6 +531,44 @@ else:
                 
         st.divider()
         
+        col_tabela, col_status = st.columns([1.6, 1.4])
+        with col_tabela:
+            st.subheader("🕒 Últimas Movimentações Registradas")
+            if not df_calculo.empty:
+                recentes = df_calculo.sort_values(by="Data_dt", ascending=False).head(5)
+                for _, row in recentes.iterrows():
+                    tipo_str = str(row["Tipo_Norm"])
+                    is_despesa = (tipo_str == "DESPESA")
+                    icone_tipo = "↘" if is_despesa else "↗"
+                    data_fmt = row["Data_dt"].strftime("%d/%m/%Y %H:%M") if pd.notnull(row["Data_dt"]) else str(row["Data"])
+                    st.markdown(f"""
+                    <div style="background: #161B22; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #30363D; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <span style="font-weight: bold; color: {'#FF3D00' if is_despesa else '#00E676'};">{icone_tipo} {row['Tipo']}</span> • <strong>{row['Descrição']}</strong>
+                            <div style="font-size: 0.8rem; color: #8B949E;">{row['Categoria']} • {data_fmt}</div>
+                        </div>
+                        <div style="font-weight: bold; color: {'#FF3D00' if is_despesa else '#00E676'};">
+                            {'-' if is_despesa else '+'}{moeda(row['Valor'])}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Nenhum lançamento recente registrado.")
+        with col_status:
+            st.subheader("📋 Status da Conta")
+            if saldo_liquido < 0:
+                st.markdown("""
+                <div style="background: rgba(255, 61, 0, 0.1); padding: 15px; border-radius: 8px; border: 1px solid #FF3D00;">
+                    🚨 <strong>Alerta Contábil:</strong> Suas despesas superaram as receitas! Recomenda-se conter novos gastos.
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: rgba(0, 230, 118, 0.1); padding: 15px; border-radius: 8px; border: 1px solid #00E676;">
+                    ✅ <strong>Situação Estável:</strong> Seu saldo atual permanece positivo no período analisado.
+                </div>
+                """, unsafe_allow_html=True)
+                
     # =========================================================================
     # TELA: LANÇAR
     # =========================================================================
@@ -637,32 +694,6 @@ else:
         else:
             st.info("ℹ️ Não existem lançamentos cadastrados.")
             
-    # =========================================================================
-    # TELA: METAS
-    # =========================================================================
-    elif menu == "Metas":
-        st.title("🎯 Metas Financeiras")
-        st.caption("Defina a meta de economia para a sua conta e salve permanentemente no MySQL.")
-        meta_atual_val = float(st.session_state.get("meta_mes", 1000.00))
-        nova_meta = st.number_input("Definir Meta do Mês (R$)", min_value=1.0, value=meta_atual_val, step=100.0)
-        if st.button("💾 Salvar Meta no Banco", type="primary"):
-            conexao = obter_conexao()
-            cursor = conexao.cursor()
-            try:
-                cursor.execute("""
-                    UPDATE Usuarios SET meta_mes = %s WHERE id = %s
-                """, (nova_meta, st.session_state.usuario_id))
-                conexao.commit()
-                st.session_state.meta_mes = float(nova_meta)
-                st.toast("🎉 Meta salva permanentemente!", icon="✅")
-                st.success("Meta atualizada com sucesso no banco de dados!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao salvar a meta: {e}")
-            finally:
-                cursor.close()
-                conexao.close()
-                
     # =========================================================================
     # TELA: GRÁFICOS
     # =========================================================================
