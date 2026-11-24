@@ -1,6 +1,6 @@
 
 import mysql.connector
-from mysql.connector import Error
+from mysql.connector import Error 
 
 import hashlib
 import re

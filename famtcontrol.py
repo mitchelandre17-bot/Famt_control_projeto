@@ -9,7 +9,7 @@ from famt_db_manager import FAMTDatabaseManager
 class FAMTAppCLI:
     """Interface de linha de comando para terminal."""
 
-    def __init__(self, db_manager: FAMTDatabaseManager):
+    def __init__(self, db_manager: FAMTDatabaseManager): 
         self.db = db_manager
 
     # =========================================================================

@@ -195,7 +195,7 @@ if 'primeiro_acesso' not in st.session_state:
 # =============================================================================
 # TELA DE LOGIN / CADASTRO DE CONTA / RECUPERAÇÃO DE SENHA
 # =============================================================================
-if st.session_state.usuario_id is None:
+if st.session_state.usuario_id is None: 
     col_left, col_center, col_right = st.columns([1, 2, 1])
     with col_center:
         if LOGO_PATH.exists():

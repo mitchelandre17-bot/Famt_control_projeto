@@ -2,7 +2,7 @@
 -- ESQUEMA DO BANCO DE DADOS MYSQL - FAMT CONTROL
 -- =============================================================================
 
--- Criação do banco de dados
+-- Criação do banco de dados 
 CREATE DATABASE IF NOT EXISTS famt_control
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
