@@ -362,7 +362,7 @@ else:
 
     agora = datetime.now()
     primeiro_dia_mes_atual = agora.replace(day=1)
-    ultimo_dia_num_atual = calendar.monthrange(agora.year, agora.month)[9]
+    ultimo_dia_num_atual = calendar.monthrange(agora.year, agora.month)[2]
     ultimo_dia_mes_atual = agora.replace(day=ultimo_dia_num_atual)
 
     if "data_inicio_sel" not in st.session_state:
