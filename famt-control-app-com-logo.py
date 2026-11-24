@@ -294,7 +294,7 @@ if st.session_state.usuario_id is None:
 # BLOQUEIO DE PRIMEIRO ACESSO (VALIDAÇÃO RÍGIDA LGPD)
 # =============================================================================
 elif st.session_state.primeiro_acesso == 1:
-    col_l, col_c, col_r = st.columns([1, 2])
+    col_l, col_c, col_r = st.columns([1, 2, 1])
     with col_c:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por motivos de segurança, é obrigatório redefinir sua senha provisória atendendo aos requisitos mínimos de complexidade:")
