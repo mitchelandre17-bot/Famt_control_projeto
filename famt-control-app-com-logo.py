@@ -21,6 +21,8 @@ import html
 # =============================================================================
 # CONFIGURAÇÃO INICIAL DA PÁGINA STREAMLIT
 # =============================================================================
+LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
+
 st.set_page_config(
     page_title="FAMT CONTROL - Dashboard",
     page_icon="💰",
@@ -31,9 +33,6 @@ st.set_page_config(
 # =============================================================================
 # LOGO E CONFIGURAÇÃO DO BANCO DE DADOS MYSQL (COM CACHE E RECONEXÃO ATIVA)
 # =============================================================================
-LOGO_PATH = Path(__file__).resolve().parent / "Logo Fintech FAMT Control.png"
-
-
 def logo_html(css_class="system-logo"):
     """Retorna a logo em base64 para funcionar dentro do HTML do Streamlit."""
     if not LOGO_PATH.exists():
@@ -41,7 +40,6 @@ def logo_html(css_class="system-logo"):
     data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
     classe = html.escape(css_class, quote=True)
     return f'<img src="data:image/png;base64,{data}" class="{classe}">'
-
 
 @st.cache_resource(ttl=300)
 def obter_conexao():
@@ -64,7 +62,6 @@ def obter_conexao():
         st.info("Confira se o MySQL está iniciado, se o banco 'famt_control' existe e se usuário/senha estão corretos.")
         st.stop()
 
-
 def obter_conexao_valida():
     """Garante que a conexão recuperada do cache esteja 100% ativa antes da execução SQL."""
     conexao = obter_conexao()
@@ -75,14 +72,12 @@ def obter_conexao_valida():
         conexao = obter_conexao()
     return conexao
 
-
 # =============================================================================
 # MÓDULO DE SEGURANÇA, CRIPTOGRAFIA E VALIDAÇÕES (LGPD)
 # =============================================================================
 def _hash_senha(senha: str) -> str:
     """Gera hash SHA-256 para a senha."""
     return hashlib.sha256(senha.encode("utf-8")).hexdigest()
-
 
 def validar_complexidade_senha(senha: str) -> tuple[bool, str]:
     """Valida os requisitos mínimos de segurança de senha (LGPD)."""
@@ -97,7 +92,6 @@ def validar_complexidade_senha(senha: str) -> tuple[bool, str]:
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', senha):
         return False, "A senha deve conter pelo menos um caractere especial."
     return True, "Senha válida."
-
 
 def gerar_senha_provisoria(tamanho: int = 8) -> str:
     """Gera uma senha provisória aleatória."""
@@ -115,7 +109,6 @@ def gerar_senha_provisoria(tamanho: int = 8) -> str:
     senha += [random.choice(todos) for _ in range(tamanho - 4)]
     random.shuffle(senha)
     return "".join(senha)
-
 
 def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> bool:
     """Envia a senha provisória por SMTP se as credenciais estiverem configuradas."""
@@ -143,7 +136,6 @@ def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> 
     except Exception as e:
         st.warning(f"Não foi possível enviar o e-mail: {e}")
         return False
-
 
 # =============================================================================
 # INICIALIZAÇÃO DO BANCO DE DADOS MYSQL
@@ -178,13 +170,16 @@ def inicializar_banco():
     except Exception as e:
         st.error(f"Erro ao inicializar o banco de dados: {e}")
 
-
 inicializar_banco()
 
 # =============================================================================
-# ESTILIZAÇÃO VISUAL PURPLE DARK MODE + ROXO NEON NOS BOTÕES
+# ESTILIZAÇÃO VISUAL
 # =============================================================================
-CUSTOM_CSS = """  """
+CUSTOM_CSS = """
+<style>
+    .system-logo { max-height: 65px; border-radius: 8px; }
+</style>
+"""
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =============================================================================
@@ -201,16 +196,15 @@ if 'primeiro_acesso' not in st.session_state:
 # TELA DE LOGIN / CADASTRO DE CONTA / RECUPERAÇÃO DE SENHA
 # =============================================================================
 if st.session_state.usuario_id is None:
-    col_left, col_center, col_right = st.columns([1, 2, 1])
+    col_left, col_center, col_right = st.columns([5, 13])
     with col_center:
         if LOGO_PATH.exists():
-            logo_data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
             st.markdown(f'<div>{logo_html("login-logo")}</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div>💰</div>', unsafe_allow_html=True)
         st.markdown("<h2>FAMT <span>CONTROL</span></h2><p>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
         aba1, aba2, aba3 = st.tabs(["🔑 Entrar", "📝 Nova Conta", "🛡️ Redefinir Senha"])
-
+        
         with aba1:
             st.markdown("### 🔑 Acesse sua conta")
             with st.form(key="form_login_v24"):
@@ -300,7 +294,7 @@ if st.session_state.usuario_id is None:
 # BLOQUEIO DE PRIMEIRO ACESSO (VALIDAÇÃO RÍGIDA LGPD)
 # =============================================================================
 elif st.session_state.primeiro_acesso == 1:
-    col_l, col_c, col_r = st.columns([3, 11])
+    col_l, col_c, col_r = st.columns([5, 13])
     with col_c:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por motivos de segurança, é obrigatório redefinir sua senha provisória atendendo aos requisitos mínimos de complexidade:")
@@ -362,6 +356,8 @@ else:
 
     agora = datetime.now()
     primeiro_dia_mes_atual = agora.replace(day=1)
+    
+    # CORREÇÃO DEFINITIVA DO ÍNDICE DO CALENDAR.MONTHRANGE: [1] retorna o total de dias do mês
     ultimo_dia_num_atual = calendar.monthrange(agora.year, agora.month)[1]
     ultimo_dia_mes_atual = agora.replace(day=ultimo_dia_num_atual)
 
@@ -415,7 +411,7 @@ else:
     progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
 
     # CABEÇALHO SUPERIOR E NOTIFICAÇÕES (POPOVER SININHO)
-    col_welcome, col_notification = st.columns([11, 12])
+    col_welcome, col_notification = st.columns([13, 14])
     with col_welcome:
         st.markdown("### 👋 Olá, Seja Bem-Vindo(a)!\nAqui está um resumo da sua vida financeira.")
 
@@ -652,20 +648,41 @@ else:
         st.progress(progresso_meta / 100)
 
     # =========================================================================
-    # TELA: GRÁFICOS
+    # TELA: GRÁFICOS (COM GRÁFICO DE BARRAS E GRÁFICO DE ROSCA INTEGRADOS)
     # =========================================================================
     elif menu == "Gráficos":
         st.title("Relatórios e gráficos")
-        st.caption("Análise das movimentações do período selecionado.")
+        st.caption("Análise detalhada das movimentações do período selecionado.")
         if not df_calculo.empty:
-            graf = df_calculo.copy()
-            graf["Data_dt"] = pd.to_datetime(graf["Data_dt"], errors="coerce")
-            graf = graf.dropna(subset=["Data_dt"])
-            graf["Mês"] = graf["Data_dt"].dt.strftime("%m/%Y")
-            mensal = graf.groupby(["Mês", "Tipo"], as_index=False)["Valor"].sum()
-            fig = px.bar(mensal, x="Mês", y="Valor", color="Tipo", barmode="group", color_discrete_map={"Receita": "#43C6A6", "Despesa": "#9D00FF"})
-            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
-            st.plotly_chart(fig, use_container_width=True)
+            col_graf1, col_graf2 = st.columns([1.5, 1])
+            with col_graf1:
+                st.subheader("Receitas x despesas por mês")
+                graf = df_calculo.copy()
+                graf["Data_dt"] = pd.to_datetime(graf["Data_dt"], errors="coerce")
+                graf = graf.dropna(subset=["Data_dt"])
+                graf["Mês"] = graf["Data_dt"].dt.strftime("%m/%Y")
+                mensal = graf.groupby(["Mês", "Tipo"], as_index=False)["Valor"].sum()
+                fig = px.bar(
+                    mensal, x="Mês", y="Valor", color="Tipo", barmode="group",
+                    color_discrete_map={"Receita": "#43C6A6", "Despesa": "#9D00FF"}
+                )
+                fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5", height=380)
+                st.plotly_chart(fig, use_container_width=True)
+            with col_graf2:
+                st.subheader("Despesas por categoria (Gráfico de Rosca)")
+                despesas = df_calculo[df_calculo["Tipo"] == "Despesa"].copy()
+                if not despesas.empty:
+                    categorias = despesas.groupby("Categoria", as_index=False)["Valor"].sum().sort_values("Valor", ascending=False)
+                    fig_rosca = px.pie(
+                        categorias, names="Categoria", values="Valor", hole=0.66,
+                        color_discrete_sequence=["#9D00FF", "#43C6A6", "#3B9EF8", "#F4A340", "#E84DA8", "#FF647C"]
+                    )
+                    fig_rosca.update_layout(height=380, paper_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
+                    fig_rosca.update_traces(textposition="inside", textinfo="percent")
+                    st.plotly_chart(fig_rosca, use_container_width=True)
+                else:
+                    st.info("Cadastre despesas para visualizar o gráfico de rosca por categoria.")
+            st.divider()
             csv = df_calculo.drop(columns=["Data_dt"], errors="ignore").to_csv(index=False).encode("utf-8-sig")
             st.download_button("Baixar movimentações em CSV", csv, file_name="famt_control_movimentacoes.csv", mime="text/csv")
         else:
