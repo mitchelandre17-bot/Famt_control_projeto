@@ -272,7 +272,7 @@ if st.session_state.usuario_id is None:
                     else:
                         conexao = obter_conexao_valida()
                         cursor = conexao.cursor()
-                        cursor.execute("SELECT id FROM Usuarios WHERE email = %s", (rec_email,))
+                        cursor.execute("SELECT id FROM Usuarios WHERE email = %s", (rec_email,)) 
                         usr = cursor.fetchone()
                         if usr:
                             nova_prov = gerar_senha_provisoria(8)
