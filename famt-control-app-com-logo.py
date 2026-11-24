@@ -40,7 +40,7 @@ def logo_html(css_class="system-logo"):
         return ""
     data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
     classe = html.escape(css_class, quote=True)
-    return f''
+    return f'<img src="data:image/png;base64,{data}" class="{classe}">'
 
 
 @st.cache_resource(ttl=300)
@@ -205,7 +205,7 @@ if st.session_state.usuario_id is None:
     with col_center:
         if LOGO_PATH.exists():
             logo_data = base64.b64encode(LOGO_PATH.read_bytes()).decode("utf-8")
-            st.markdown('<div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div>{logo_html("login-logo")}</div>', unsafe_allow_html=True)
         else:
             st.markdown('<div>💰</div>', unsafe_allow_html=True)
         st.markdown("<h2>FAMT <span>CONTROL</span></h2><p>Seu dinheiro sob controle • Squad FAMT</p>", unsafe_allow_html=True)
@@ -216,7 +216,7 @@ if st.session_state.usuario_id is None:
             with st.form(key="form_login_v24"):
                 email = st.text_input("E-mail cadastrado", key="login_email_v24", placeholder="seu.email@exemplo.com").strip().lower()
                 senha = st.text_input("Senha de acesso", type="password", key="login_senha_v24", placeholder="••••••••").strip()
-                btn_login = st.form_submit_button("🚀 Entrar no Sistema", width="stretch", type="primary")
+                btn_login = st.form_submit_button("🚀 Entrar no Sistema", use_container_width=True, type="primary")
                 if btn_login:
                     if not email or not senha:
                         st.error("❌ Por favor, preencha o e-mail e a senha.")
@@ -243,7 +243,7 @@ if st.session_state.usuario_id is None:
             st.markdown("### 📝 Criar nova conta")
             with st.form(key="form_cad_v24"):
                 novo_email = st.text_input("E-mail para cadastro", key="cad_email_v24", placeholder="seu.email@exemplo.com").strip().lower()
-                btn_cad = st.form_submit_button("✨ Criar Minha Conta", width="stretch", type="primary")
+                btn_cad = st.form_submit_button("✨ Criar Minha Conta", use_container_width=True, type="primary")
                 if btn_cad:
                     if not novo_email or "@" not in novo_email:
                         st.error("❌ Por favor, digite um e-mail válido.")
@@ -271,7 +271,7 @@ if st.session_state.usuario_id is None:
             st.markdown("### 🛡️ Recuperar / Redefinir Senha")
             with st.form(key="form_rec_v24"):
                 rec_email = st.text_input("E-mail cadastrado", key="rec_email_v24", placeholder="seu.email@exemplo.com").strip().lower()
-                btn_rec = st.form_submit_button("🔑 Enviar E-mail de Confirmação", type="primary", width="stretch")
+                btn_rec = st.form_submit_button("🔑 Enviar E-mail de Confirmação", type="primary", use_container_width=True)
                 if btn_rec:
                     if not rec_email or "@" not in rec_email:
                         st.error("❌ Por favor, preencha um e-mail válido.")
@@ -300,7 +300,7 @@ if st.session_state.usuario_id is None:
 # BLOQUEIO DE PRIMEIRO ACESSO (VALIDAÇÃO RÍGIDA LGPD)
 # =============================================================================
 elif st.session_state.primeiro_acesso == 1:
-    col_l, col_c, col_r = st.columns([9, 10])
+    col_l, col_c, col_r = st.columns([3, 11])
     with col_c:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por motivos de segurança, é obrigatório redefinir sua senha provisória atendendo aos requisitos mínimos de complexidade:")
@@ -308,7 +308,7 @@ elif st.session_state.primeiro_acesso == 1:
         with st.form(key="form_primeiro_acesso_lgpd_v24"):
             nova_senha = st.text_input("Digite sua NOVA senha", type="password")
             confirma_senha = st.text_input("Confirme sua NOVA senha", type="password")
-            btn_pa = st.form_submit_button("Salvar Nova Senha Definitiva", width="stretch", type="primary")
+            btn_pa = st.form_submit_button("Salvar Nova Senha Definitiva", use_container_width=True, type="primary")
             if btn_pa:
                 valida, msg_erro = validar_complexidade_senha(nova_senha)
                 if not valida:
@@ -354,7 +354,7 @@ else:
         st.divider()
         st.markdown("💬 *Pequenos hábitos geram grandes conquistas!*")
         st.markdown(f"👤 **{st.session_state.email_logado}**")
-        if st.button("Sair", width="stretch"):
+        if st.button("Sair", use_container_width=True):
             st.session_state.usuario_id = None
             st.session_state.email_logado = None
             st.session_state.primeiro_acesso = 0
@@ -362,7 +362,7 @@ else:
 
     agora = datetime.now()
     primeiro_dia_mes_atual = agora.replace(day=1)
-    ultimo_dia_num_atual = calendar.monthrange(agora.year, agora.month)[2]
+    ultimo_dia_num_atual = calendar.monthrange(agora.year, agora.month)[1]
     ultimo_dia_mes_atual = agora.replace(day=ultimo_dia_num_atual)
 
     if "data_inicio_sel" not in st.session_state:
@@ -415,7 +415,7 @@ else:
     progresso_meta = min(100, int((saldo_liquido / meta_mes) * 100)) if saldo_liquido > 0 and meta_mes > 0 else 0
 
     # CABEÇALHO SUPERIOR E NOTIFICAÇÕES (POPOVER SININHO)
-    col_welcome, col_notification = st.columns([10, 11])
+    col_welcome, col_notification = st.columns([11, 12])
     with col_welcome:
         st.markdown("### 👋 Olá, Seja Bem-Vindo(a)!\nAqui está um resumo da sua vida financeira.")
 
@@ -426,7 +426,7 @@ else:
     if saldo_liquido < 0:
         lista_notificacoes.append({"titulo": "🚨 Saldo Devedor", "texto": f"Seu saldo está em {moeda(saldo_liquido)}. Recomenda-se conter despesas."})
     if not df_calculo.empty:
-        ultima_trans = df_calculo.iloc
+        ultima_trans = df_calculo.iloc[0]
         tipo_lbl = "Receita" if ultima_trans["Tipo"] == "Receita" else "Despesa"
         lista_notificacoes.append({"titulo": f"📌 Último Lançamento ({tipo_lbl})", "texto": f"{ultima_trans['Descrição']} - {moeda(float(ultima_trans['Valor']))}"})
     else:
@@ -443,11 +443,11 @@ else:
                 st.markdown(f"**{notif['titulo']}**{status_tag}\n{notif['texto']}")
             st.divider()
             if not st.session_state.notificacoes_lidas:
-                if st.button("✓ Marcar como lidas", key="btn_limpar_notif", width="stretch"):
+                if st.button("✓ Marcar como lidas", key="btn_limpar_notif", use_container_width=True):
                     st.session_state.notificacoes_lidas = True
                     st.toast("✅ Notificações marcadas como lidas!")
                     st.rerun()
-            st.button("🔍 Ver todas as notificações →", key="btn_ver_todas_notif", type="secondary", width="stretch", on_click=navegar_para, args=("Notificações",))
+            st.button("🔍 Ver todas as notificações →", key="btn_ver_todas_notif", type="secondary", use_container_width=True, on_click=navegar_para, args=("Notificações",))
 
     # MARCA E SELEÇÃO DE PERÍODO (POPOVER CALENDÁRIO)
     col_brand, col_date = st.columns([3.5, 1.2])
@@ -455,7 +455,7 @@ else:
         st.markdown("## FAMT CONTROL\n*Seu dinheiro sob controle.*")
     with col_date:
         rotulo_popover = f"📅 {d_inicio.strftime('%d/%m/%Y')} - {d_fim.strftime('%d/%m/%Y')}"
-        with st.popover(rotulo_popover, width="stretch"):
+        with st.popover(rotulo_popover, use_container_width=True):
             st.markdown("### 📅 Selecionar Período no Calendário")
             datas_selecionadas = st.date_input(
                 "Intervalo de Análise:",
@@ -469,7 +469,7 @@ else:
                     st.session_state.data_inicio_sel = d1
                     st.session_state.data_fim_sel = d2
                     st.rerun()
-            if st.button("📅 Voltar ao Mês Atual", key="btn_reset_calendario_v15", type="secondary", width="stretch"):
+            if st.button("📅 Voltar ao Mês Atual", key="btn_reset_calendario_v15", type="secondary", use_container_width=True):
                 st.session_state.data_inicio_sel = primeiro_dia_mes_atual.date()
                 st.session_state.data_fim_sel = ultimo_dia_mes_atual.date()
                 st.rerun()
@@ -503,7 +503,7 @@ else:
                 fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Receita"], name="Receitas", marker_color="#43C6A6"))
                 fig.add_trace(go.Bar(x=mensal["Mês"], y=mensal["Despesa"], name="Despesas", marker_color="#9D00FF"))
                 fig.update_layout(barmode="group", height=340, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
-                st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.info("Ainda não há movimentações neste período.")
 
@@ -515,7 +515,7 @@ else:
                 fig_cat = px.pie(categorias, names="Categoria", values="Valor", hole=0.66, color_discrete_sequence=["#9D00FF", "#43C6A6", "#3B9EF8", "#F4A340", "#E84DA8", "#FF647C"])
                 fig_cat.update_layout(height=340, paper_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
                 fig_cat.update_traces(textposition="inside", textinfo="percent")
-                st.plotly_chart(fig_cat, width="stretch", config={"displayModeBar": False})
+                st.plotly_chart(fig_cat, use_container_width=True, config={"displayModeBar": False})
             else:
                 st.info("Cadastre despesas para visualizar as categorias.")
 
@@ -523,7 +523,7 @@ else:
         st.subheader("Últimas movimentações")
         if historico_filtrado:
             recentes = pd.DataFrame(historico_filtrado, columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data"]).head(6)
-            st.dataframe(recentes[["Data", "Tipo", "Descrição", "Categoria", "Valor"]], width="stretch", hide_index=True, column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f")})
+            st.dataframe(recentes[["Data", "Tipo", "Descrição", "Categoria", "Valor"]], use_container_width=True, hide_index=True, column_config={"Valor": st.column_config.NumberColumn("Valor", format="R$ %.2f")})
         else:
             st.info("Você ainda não possui lançamentos neste período.")
 
@@ -540,14 +540,14 @@ else:
         st.divider()
         ac1, ac2, ac3 = st.columns(3)
         with ac1:
-            st.button("＋ Novo lançamento", width="stretch", key="painel_novo", on_click=navegar_para, args=("Lançar",))
+            st.button("＋ Novo lançamento", use_container_width=True, key="painel_novo", on_click=navegar_para, args=("Lançar",))
         with ac2:
-            st.button("Ver extrato", width="stretch", key="painel_extrato", on_click=navegar_para, args=("Extrato e Edição",))
+            st.button("Ver extrato", use_container_width=True, key="painel_extrato", on_click=navegar_para, args=("Extrato e Edição",))
         with ac3:
-            st.button("Ver gráficos", width="stretch", key="painel_graficos", on_click=navegar_para, args=("Gráficos",))
+            st.button("Ver gráficos", use_container_width=True, key="painel_graficos", on_click=navegar_para, args=("Gráficos",))
 
     # =========================================================================
-    # TELA: LANÇAR (DATA E HORA AUTOMÁTICAS)
+    # TELA: LANÇAR (REGISTRO AUTOMÁTICO DE DATA/HORA)
     # =========================================================================
     elif menu == "Lançar":
         st.title("Novo lançamento")
@@ -557,7 +557,7 @@ else:
             valor = st.number_input("Valor (R$)", min_value=0.01, value=1.00, step=1.00, format="%.2f")
             descricao = st.text_input("Descrição", max_chars=255)
             categoria = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Educação", "Saúde", "Lazer", "Salário", "Freelance", "Contas", "Compras", "Outros"])
-            salvar = st.form_submit_button("Salvar lançamento", type="primary", width="stretch")
+            salvar = st.form_submit_button("Salvar lançamento", type="primary", use_container_width=True)
             if salvar:
                 if not descricao.strip():
                     st.error("Informe uma descrição para o lançamento.")
@@ -586,14 +586,14 @@ else:
         st.caption("Consulte, edite ou exclua suas movimentações.")
         if historico_filtrado:
             extrato = pd.DataFrame(historico_filtrado, columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data"])
-            st.dataframe(extrato.drop(columns=["ID"]), width="stretch", hide_index=True)
+            st.dataframe(extrato.drop(columns=["ID"]), use_container_width=True, hide_index=True)
             ids = extrato["ID"].astype(int).tolist()
             selecionado = st.selectbox(
                 "Selecione um lançamento para editar ou excluir",
                 ids,
-                format_func=lambda x: f"#{x} — {extrato.loc[extrato['ID'].astype(int) == x, 'Descrição'].iloc}"
+                format_func=lambda x: f"#{x} — {extrato.loc[extrato['ID'].astype(int) == x, 'Descrição'].iloc[0]}"
             )
-            atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc
+            atual = extrato.loc[extrato["ID"].astype(int) == int(selecionado)].iloc[0]
             with st.form("form_editar_lancamento"):
                 novo_tipo = st.selectbox("Tipo", ["Despesa", "Receita"], index=0 if atual["Tipo"] == "Despesa" else 1)
                 novo_valor = st.number_input("Valor (R$)", min_value=0.01, value=max(0.01, float(atual["Valor"])), step=1.0)
@@ -665,7 +665,7 @@ else:
             mensal = graf.groupby(["Mês", "Tipo"], as_index=False)["Valor"].sum()
             fig = px.bar(mensal, x="Mês", y="Valor", color="Tipo", barmode="group", color_discrete_map={"Receita": "#43C6A6", "Despesa": "#9D00FF"})
             fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#E8E7F5")
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
             csv = df_calculo.drop(columns=["Data_dt"], errors="ignore").to_csv(index=False).encode("utf-8-sig")
             st.download_button("Baixar movimentações em CSV", csv, file_name="famt_control_movimentacoes.csv", mime="text/csv")
         else:
@@ -684,7 +684,7 @@ else:
             st.info("Cadastre movimentações para receber notificações financeiras.")
         if historico_filtrado:
             st.subheader("Movimentação mais recente")
-            st.write(historico_filtrado[12], "—", moeda(historico_filtrado[10]))
+            st.write(historico_filtrado[0][4], "—", moeda(historico_filtrado[0][2]))
 
     # =========================================================================
     # TELA: ALERTAS E DICAS
