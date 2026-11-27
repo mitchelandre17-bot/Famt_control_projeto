@@ -186,7 +186,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # GERENCIAMENTO DE SESSÃO
 # =============================================================================
 if 'usuario_id' not in st.session_state:
-    st.session_state.usuario_id = None
+    st.session_state.usuario_id = None 
 if 'email_logado' not in st.session_state:
     st.session_state.email_logado = None
 if 'primeiro_acesso' not in st.session_state:
