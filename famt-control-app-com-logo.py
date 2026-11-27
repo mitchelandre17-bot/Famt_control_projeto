@@ -6,11 +6,9 @@ import pandas as pd
 import hashlib
 import re
 import random
-from zoneinfo import ZoneInfo
-from datetime import datetime
-from zoneinfo import ZoneInfo
 import string
 from datetime import datetime, date, time, timedelta
+from zoneinfo import ZoneInfo
 import calendar
 import base64
 import smtplib
@@ -189,7 +187,7 @@ st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 # GERENCIAMENTO DE SESSÃO
 # =============================================================================
 if 'usuario_id' not in st.session_state:
-    st.session_state.usuario_id = None 
+    st.session_state.usuario_id = None
 if 'email_logado' not in st.session_state:
     st.session_state.email_logado = None
 if 'primeiro_acesso' not in st.session_state:
@@ -203,7 +201,7 @@ if 'nav_radio_key' not in st.session_state:
 # TELA DE LOGIN / CADASTRO DE CONTA / RECUPERAÇÃO DE SENHA
 # =============================================================================
 if st.session_state.usuario_id is None:
-    col_left, col_center, col_right = st.columns([1, 2, 1])
+    col_left, col_center, col_right = st.columns([4, 10, 4])
     with col_center:
         if LOGO_PATH.exists():
             st.markdown(f'<div>{logo_html("login-logo")}</div>', unsafe_allow_html=True)
@@ -301,7 +299,7 @@ if st.session_state.usuario_id is None:
 # BLOQUEIO DE PRIMEIRO ACESSO (VALIDAÇÃO RÍGIDA LGPD)
 # =============================================================================
 elif st.session_state.primeiro_acesso == 1:
-    col_l, col_c, col_r = st.columns([5, 13])
+    col_l, col_c, col_r = st.columns([4, 10, 4])
     with col_c:
         st.warning("⚠️ **Primeiro Acesso Detectado (Conformidade LGPD)**")
         st.info("Por motivos de segurança, é obrigatório redefinir sua senha provisória atendendo aos requisitos mínimos de complexidade:")
@@ -388,8 +386,7 @@ else:
     if historico:
         df_bruto = pd.DataFrame(historico, columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data"])
         df_bruto["Valor"] = pd.to_numeric(df_bruto["Valor"], errors="coerce").fillna(0.0)
-        # Correção do fuso horário UTC -> Horário do Brasil (-3 horas)
-        df_bruto["Data_dt"] = pd.to_datetime(df_bruto["Data"], errors="coerce") - pd.Timedelta(hours=3)
+        df_bruto["Data_dt"] = pd.to_datetime(df_bruto["Data"], errors="coerce")
         dt_ini_pd = pd.to_datetime(d_inicio)
         dt_fim_pd = pd.to_datetime(d_fim) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
         mask_periodo = (df_bruto["Data_dt"] >= dt_ini_pd) & (df_bruto["Data_dt"] <= dt_fim_pd)
@@ -545,7 +542,7 @@ else:
             st.button("Ver gráficos", width="stretch", key="painel_graficos", on_click=navegar_para, args=("Gráficos",))
 
     # =========================================================================
-    # TELA: LANÇAR (REGISTRO AUTOMÁTICO DE DATA/HORA CORRIGIDO PARA BRASIL)
+    # TELA: LANÇAR (COM ZONEINFO PARA O HORÁRIO DO BRASIL E TOAST DE SUCESSO)
     # =========================================================================
     elif st.session_state.menu == "Lançar":
         st.title("Novo lançamento")
@@ -563,15 +560,13 @@ else:
                     conexao = obter_conexao_valida()
                     cursor = conexao.cursor()
                     try:
-                        # Subtrai 3 horas para salvar no horário local do Brasil (UTC-3)
                         data_hora_atual = datetime.now(ZoneInfo("America/Sao_Paulo")).replace(tzinfo=None)
                         cursor.execute("""
                             INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria)
                             VALUES (%s, %s, %s, %s, %s, %s)
                         """, (st.session_state.usuario_id, valor, tipo, data_hora_atual, descricao.strip(), categoria))
                         conexao.commit()
-                        st.success("Lançamento salvo com sucesso!")
-                        st.rerun()
+                        st.toast("Lançamento salvo com sucesso!", icon="✅")
                     except Exception as e:
                         st.error(f"Não foi possível salvar o lançamento: {e}")
                     finally:
@@ -612,7 +607,7 @@ else:
                                 WHERE id = %s AND usuario_id = %s
                             """, (novo_tipo, novo_valor, nova_categoria.strip(), nova_descricao.strip(), int(selecionado), st.session_state.usuario_id))
                             conexao.commit()
-                            st.success("Lançamento atualizado.")
+                            st.toast("Lançamento atualizado com sucesso!", icon="✅")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Erro ao atualizar: {e}")
@@ -627,7 +622,7 @@ else:
                     try:
                         cursor.execute("DELETE FROM Transacoes WHERE id = %s AND usuario_id = %s", (int(selecionado), st.session_state.usuario_id))
                         conexao.commit()
-                        st.success("Lançamento excluído.")
+                        st.toast("Lançamento excluído com sucesso!", icon="🗑️")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao excluir: {e}")

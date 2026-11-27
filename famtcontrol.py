@@ -1,5 +1,5 @@
  
-from famt_db_manager import FAMTDatabaseManager  
+from famt_db_manager import FAMTDatabaseManager   
 
 
 # =============================================================================
