@@ -7,7 +7,7 @@ import hashlib
 import re
 import random
 import string
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import calendar
 import base64
 import smtplib
@@ -200,7 +200,7 @@ if 'nav_radio_key' not in st.session_state:
 # TELA DE LOGIN / CADASTRO DE CONTA / RECUPERAÇÃO DE SENHA
 # =============================================================================
 if st.session_state.usuario_id is None:
-    col_left, col_center, col_right = st.columns([1, 2, 1])
+    col_left, col_center, col_right = st.columns([5, 13])
     with col_center:
         if LOGO_PATH.exists():
             st.markdown(f'<div>{logo_html("login-logo")}</div>', unsafe_allow_html=True)
@@ -385,7 +385,8 @@ else:
     if historico:
         df_bruto = pd.DataFrame(historico, columns=["ID", "Tipo", "Valor", "Categoria", "Descrição", "Data"])
         df_bruto["Valor"] = pd.to_numeric(df_bruto["Valor"], errors="coerce").fillna(0.0)
-        df_bruto["Data_dt"] = pd.to_datetime(df_bruto["Data"], errors="coerce")
+        # Correção do fuso horário UTC -> Horário do Brasil (-3 horas)
+        df_bruto["Data_dt"] = pd.to_datetime(df_bruto["Data"], errors="coerce") - pd.Timedelta(hours=3)
         dt_ini_pd = pd.to_datetime(d_inicio)
         dt_fim_pd = pd.to_datetime(d_fim) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
         mask_periodo = (df_bruto["Data_dt"] >= dt_ini_pd) & (df_bruto["Data_dt"] <= dt_fim_pd)
@@ -541,7 +542,7 @@ else:
             st.button("Ver gráficos", width="stretch", key="painel_graficos", on_click=navegar_para, args=("Gráficos",))
 
     # =========================================================================
-    # TELA: LANÇAR (REGISTRO AUTOMÁTICO DE DATA/HORA)
+    # TELA: LANÇAR (REGISTRO AUTOMÁTICO DE DATA/HORA CORRIGIDO PARA BRASIL)
     # =========================================================================
     elif st.session_state.menu == "Lançar":
         st.title("Novo lançamento")
@@ -559,7 +560,8 @@ else:
                     conexao = obter_conexao_valida()
                     cursor = conexao.cursor()
                     try:
-                        data_hora_atual = datetime.now()
+                        # Subtrai 3 horas para salvar no horário local do Brasil (UTC-3)
+                        data_hora_atual = datetime.now() - timedelta(hours=3)
                         cursor.execute("""
                             INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria)
                             VALUES (%s, %s, %s, %s, %s, %s)
