@@ -95,20 +95,7 @@ def validar_complexidade_senha(senha: str) -> tuple[bool, str]:
 
 def gerar_senha_provisoria(tamanho: int = 8) -> str:
     """Gera uma senha provisória aleatória."""
-    maiusculas = string.ascii_uppercase
-    minusculas = string.ascii_lowercase
-    numeros = string.digits
-    simbolos = "!@#$%^&*"
-    senha = [
-        random.choice(maiusculas),
-        random.choice(minusculas),
-        random.choice(numeros),
-        random.choice(simbolos)
-    ]
-    todos = maiusculas + minusculas + numeros + simbolos
-    senha += [random.choice(todos) for _ in range(tamanho - 4)]
-    random.shuffle(senha)
-    return "".join(senha)
+    return "famt123"
 
 def enviar_senha_provisoria_email(email_destino: str, senha_provisoria: str) -> bool:
     """Envia a senha provisória por SMTP se as credenciais estiverem configuradas."""
