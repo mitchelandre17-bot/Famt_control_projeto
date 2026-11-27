@@ -6,6 +6,9 @@ import pandas as pd
 import hashlib
 import re
 import random
+from zoneinfo import ZoneInfo
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import string
 from datetime import datetime, date, time, timedelta
 import calendar
@@ -561,7 +564,7 @@ else:
                     cursor = conexao.cursor()
                     try:
                         # Subtrai 3 horas para salvar no horário local do Brasil (UTC-3)
-                        data_hora_atual = datetime.now() - timedelta(hours=3)
+                        data_hora_atual = datetime.now(ZoneInfo("America/Sao_Paulo")).replace(tzinfo=None)
                         cursor.execute("""
                             INSERT INTO Transacoes (usuario_id, valor, tipo, data, descricao, categoria)
                             VALUES (%s, %s, %s, %s, %s, %s)
